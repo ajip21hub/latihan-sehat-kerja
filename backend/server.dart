@@ -8,6 +8,7 @@
 // Kontrak Hari 2: POST /auth/login, POST /auth/refresh (access bisa kedaluwarsa).
 // Kontrak untuk kasus offline Hari 3:
 //   GET  /v1/snapshot     isi cache (network-first)
+//   GET  /v1/artikel      bacaan; klien menyimpan salinan di perangkat
 //   POST /v1/outbox       kirim baris yang synced=false
 //   GET  /v1/stream       WebSocket, status pengajuan berubah sendiri
 //
@@ -20,6 +21,52 @@ import 'dart:io';
 import 'dart:math';
 
 const _portDefault = 8787;
+
+/// Bacaan yang sama untuk semua akun latihan. Bukan salinan peraturan.
+const _artikel = [
+  {
+    'id': 'kelas-rawat',
+    'judul': 'Kelas rawat 1, 2, dan 3',
+    'ringkas': 'Kelas menentukan ruang rawat inap, bukan harga obat.',
+    'isi':
+        'Di latihan ini peserta punya satu kelas: 1, 2, atau 3, plus satu faskes. '
+        'Kelas itu contoh golongan layanan, bukan perhitungan iuran. '
+        'Naik atau turun kelas tidak dibuat di versi ini.',
+    'diperbarui': 1763000000000,
+  },
+  {
+    'id': 'saldo-jht',
+    'judul': 'Saldo JHT bukan pensiun bulanan',
+    'ringkas': 'Yang tampil adalah tabungan: iuran peserta, pemberi kerja, dan pengembangan.',
+    'isi':
+        'Jaminan Hari Tua di layar ini adalah saldo sekaligus, bukan manfaat bulanan. '
+        'Jaminan Pensiun bulanan tidak ada di aplikasi latihan. '
+        'Angka saldo adalah contoh supaya pengajuan bisa dicoba.',
+    'diperbarui': 1763000001000,
+  },
+  {
+    'id': 'ambil-sebagian',
+    'judul': 'Pengambilan 10% butuh 10 tahun',
+    'ringkas':
+        'Akun 0001 boleh mengajukan. Akun 0002 ditolak karena baru 4 tahun.',
+    'isi':
+        'Pengambilan sebagian 10% untuk peserta yang masih aktif, di latihan ini, '
+        'mensyaratkan kepesertaan minimal 10 tahun. Jalur 30% untuk rumah tidak dibuat. '
+        'Perkiraan 1 hari kerja di bawah Rp10 juta dan 5 hari di atasnya hanya label belajar.',
+    'diperbarui': 1763000002000,
+  },
+  {
+    'id': 'antrean-offline',
+    'judul': 'Pengajuan tetap tersimpan di perangkat',
+    'ringkas':
+        'Kalau server mati, pengajuan masuk antrean dan dikirim lagi nanti.',
+    'isi':
+        'Bacaan ini diunduh sekali lalu disimpan di SQLite. Saat server tidak terjangkau, '
+        'daftar yang sudah ada tetap bisa dibuka. Pengajuan layanan dan dana tidak '
+        'ditandai sukses sebelum server menerimanya.',
+    'diperbarui': 1763000003000,
+  },
+];
 
 Future<void> main(List<String> args) async {
   final check = args.contains('--self-check');
@@ -101,6 +148,10 @@ Future<void> _handle(HttpRequest request, Store store) async {
     }
     if (request.method == 'GET' && path == '/v1/snapshot') {
       await _json(response, store.snapshot(nomor));
+      return;
+    }
+    if (request.method == 'GET' && path == '/v1/artikel') {
+      await _json(response, {'artikel': _artikel});
       return;
     }
     if (request.method == 'POST' && path == '/v1/outbox') {
@@ -673,6 +724,11 @@ Future<int> _selfCheck(int port, Store store) async {
 
     final awal = await _call(client, 'GET', '$base/v1/snapshot', null, token);
     _expect(awal.json['saldo']['total'] == 12500000, 'saldo awal 12,5 juta');
+
+    final bacaan = await _call(client, 'GET', '$base/v1/artikel', null, token);
+    _expect(bacaan.status == 200, 'artikel 200');
+    _expect(bacaan.json['artikel'] is List, 'artikel berupa daftar');
+    _expect((bacaan.json['artikel'] as List).length == 4, 'empat bacaan');
 
     final layanan = await _call(client, 'POST', '$base/v1/outbox', {
       'ops': [

@@ -9,6 +9,7 @@ import '../core/format.dart';
 import '../core/storage/token_storage.dart';
 import '../core/sync/outbox_sync.dart';
 import '../core/sync/status_terapkan.dart';
+import '../features/artikel/domain/artikel.dart';
 import '../features/dana/domain/pengajuan_dana.dart';
 import '../features/layanan/domain/pengajuan_layanan.dart';
 import '../features/peserta/domain/auth_session.dart';
@@ -45,6 +46,7 @@ class SehatRepository {
       final snap = await _jaga(_klien.snapshot);
       await _ingat(snap);
       await kirimAntrean();
+      await _artikelDiam();
       return AuthSession(peserta: terakhir!.peserta);
     } on NetworkFailure {
       final cache = await _bacaCache();
@@ -68,6 +70,7 @@ class SehatRepository {
       final snap = await _jaga(_klien.snapshot);
       await _ingat(snap);
       await kirimAntrean();
+      await _artikelDiam();
       return AuthSession(peserta: terakhir!.peserta);
     } on NetworkFailure {
       final snap = AppSnapshot.kosong(hasil.peserta, fromCache: true);
@@ -80,10 +83,58 @@ class SehatRepository {
     final snap = await _jaga(_klien.snapshot);
     await _ingat(snap);
     await kirimAntrean();
+    await _artikelDiam();
     return AuthSession(
       peserta: terakhir!.peserta,
       fromCache: terakhir!.fromCache,
     );
+  }
+
+  /// Jaringan dulu, lalu ganti cache. Putus: baca `artikel_cache`.
+  /// Id yang tidak kembali dari server dihapus hanya kalau unduhan sukses.
+  Future<DaftarArtikel> muatArtikel() async {
+    try {
+      final daftar = await _jaga(_klien.artikel);
+      final sekarang = DateTime.now().millisecondsSinceEpoch;
+      await _db.gantiArtikel([
+        for (final artikel in daftar)
+          ArtikelCacheCompanion.insert(
+            id: artikel.id,
+            judul: artikel.judul,
+            ringkas: artikel.ringkas,
+            isi: artikel.isi,
+            diperbarui: artikel.diperbarui,
+            disimpan: sekarang,
+          ),
+      ]);
+      return DaftarArtikel(daftar: await _bacaArtikelLokal(), fromCache: false);
+    } on NetworkFailure {
+      final cache = await _bacaArtikelLokal();
+      if (cache.isEmpty) rethrow;
+      return DaftarArtikel(daftar: cache, fromCache: true);
+    }
+  }
+
+  Future<void> _artikelDiam() async {
+    try {
+      await muatArtikel();
+    } on Failure {
+      return;
+    }
+  }
+
+  Future<List<Artikel>> _bacaArtikelLokal() async {
+    final rows = await _db.bacaArtikel();
+    return [
+      for (final row in rows)
+        Artikel(
+          id: row.id,
+          judul: row.judul,
+          ringkas: row.ringkas,
+          isi: row.isi,
+          diperbarui: row.diperbarui,
+        ),
+    ];
   }
 
   Future<void> keluar() => _hapusLokal();

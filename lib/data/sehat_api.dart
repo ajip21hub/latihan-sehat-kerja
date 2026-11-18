@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/network/dio_client.dart';
+import '../features/artikel/domain/artikel.dart';
 import '../features/peserta/domain/peserta.dart';
 import 'app_snapshot.dart';
 
@@ -54,6 +55,7 @@ class HasilOutbox {
 abstract class KlienSehat {
   Future<HasilMasuk> masuk(String nomor, String sandi);
   Future<AppSnapshot> snapshot();
+  Future<List<Artikel>> artikel();
   Future<HasilOutbox> outbox(Map<String, dynamic> op);
   Future<List<HasilOutbox>> outboxSemua(List<Map<String, dynamic>> ops);
 }
@@ -80,6 +82,16 @@ class DioKlienSehat implements KlienSehat {
   Future<AppSnapshot> snapshot() async {
     final res = await _dio.get<Map<String, dynamic>>('/v1/snapshot');
     return AppSnapshot.fromJson(_objek(res.data));
+  }
+
+  @override
+  Future<List<Artikel>> artikel() async {
+    final res = await _dio.get<Map<String, dynamic>>('/v1/artikel');
+    final list = _objek(res.data)['artikel'];
+    if (list is! List) {
+      throw const FormatException('Artikel harus berupa daftar.');
+    }
+    return [for (final item in list) Artikel.fromJson(_objek(item))];
   }
 
   @override

@@ -113,9 +113,14 @@ class Catatan extends StatelessWidget {
 }
 
 class PitaLuring extends StatelessWidget {
-  const PitaLuring(this.pesan, {super.key});
+  const PitaLuring(
+    this.pesan, {
+    super.key,
+    this.judul = 'Sesi dari data tersimpan',
+  });
 
   final String pesan;
+  final String judul;
 
   @override
   Widget build(BuildContext context) {
@@ -136,9 +141,9 @@ class PitaLuring extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Sesi dari data tersimpan',
-                  style: TextStyle(fontWeight: FontWeight.w600),
+                Text(
+                  judul,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 2),
                 Text(

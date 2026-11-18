@@ -46,6 +46,17 @@ void main() {
     final rows = await baru.belumTerkirim();
     expect(rows.single.clientId, 'c');
     expect(rows.single.batal, isFalse);
+    await baru.gantiArtikel([
+      ArtikelCacheCompanion.insert(
+        id: 'kelas-rawat',
+        judul: 'Kelas',
+        ringkas: 'Ringkas',
+        isi: 'Isi',
+        diperbarui: 1,
+        disimpan: 1,
+      ),
+    ]);
+    expect((await baru.bacaArtikel()).single.id, 'kelas-rawat');
     await baru.close();
     if (await file.exists()) await file.delete();
   });

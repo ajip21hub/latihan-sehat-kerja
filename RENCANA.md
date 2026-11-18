@@ -31,6 +31,7 @@ Dari kanal publik (bukan salinan peraturan): pengambilan sebagian 10% untuk pese
 | Log tanpa token (Hari 2) | `redactSecrets` |
 | Debounce cari (Hari 2) | `saringanLayananProvider`, filter lokal |
 | drift, network-first (Hari 3) | `snapshot_cache`. Jaringan gagal memakai baris ini, lalu JSON lama di secure storage |
+| Cache bacaan (Hari 3) | `GET /v1/artikel` mengganti `artikel_cache`. Putus: baca salinan lokal. Id yang hilang di server dihapus hanya saat unduhan sukses |
 | Outbox (Hari 3) | `outbox_rows`. Kirim offline langsung tersimpan, `synced = false` |
 | Sidik / race (Hari 3) | `tandaiSynced` hanya jika payload yang dikirim masih sama |
 | Konflik saldo (Hari 3) | `saldo_berubah` dan `nominal_berubah` tidak di-synced. `expectedSaldoTotal` (dan nominal) ditulis ulang |
@@ -55,6 +56,7 @@ Dari kanal publik (bukan salinan peraturan): pengambilan sebagian 10% untuk pese
 3. Layanan: lihat riwayat, ajukan rawat jalan atau rawat inap. Status awal `Diajukan`.
 4. Dana: lihat pecahan saldo, ajukan 10% atau seluruhnya. Use case yang memutuskan, bukan halaman.
 5. Profil: NIK disamarkan. Keluar.
+6. Bacaan: artikel dari server, tersimpan di perangkat, tetap bisa dibaca saat server mati.
 
 ## Offline-first dan background sync
 
@@ -62,7 +64,9 @@ Pengajuan tidak menunggu jawaban server sebelum muncul di layar. Barisnya masuk 
 
 Saat jaringan ada, semua baris yang belum selesai dikirim sekaligus. Sukses atau `alreadyApplied` menandai synced hanya kalau sidik payload belum berubah. `saldo_berubah` dan `nominal_berubah` tetap antre, saldo di layar dimuat ulang, lalu angka di payload disesuaikan. `ditolak` dan `jenis` selesai.
 
-Snapshot tetap bentuk `AppSnapshot`. Sumbernya tabel `snapshot_cache` (skema versi 2; migrasi dari versi 1 menambah kolom `batal`). JSON `cached_snapshot` hanya dibaca kalau tabel masih kosong, supaya sesi lama tidak hilang.
+Snapshot tetap bentuk `AppSnapshot`. Sumbernya tabel `snapshot_cache` (skema versi 3; migrasi dari versi 1 menambah kolom `batal`, dari versi 2 menambah `artikel_cache`). JSON `cached_snapshot` hanya dibaca kalau tabel masih kosong, supaya sesi lama tidak hilang.
+
+Bacaan diunduh utuh dari `GET /v1/artikel` lalu menggantikan `artikel_cache`. Kalau unduhan putus dan cache ada, layar memakai salinan itu dan menandai dari data tersimpan. Kalau belum pernah terunduh, layar menampilkan gagal jaringan. Keluar tidak menghapus bacaan.
 
 WorkManager berjalan di isolate sendiri, hanya Android, minimal 15 menit, dan hanya saat jaringan tersambung. Chrome, desktop, dan iOS mengirim antrean selagi aplikasi terbuka: saat sesi dipulihkan, saat “Cek sesi lagi”, dan lewat tombol. WebSocket status memakai `web_socket_channel` supaya jalan di web maupun VM. Sambungan putus dicoba lagi dengan jeda 1, 2, 4, 8, lalu 15 detik.
 

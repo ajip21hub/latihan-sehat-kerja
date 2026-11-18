@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/artikel/presentation/artikel_baca_page.dart';
+import '../features/artikel/presentation/artikel_page.dart';
 import '../features/dana/presentation/aju_dana_page.dart';
 import '../features/dana/presentation/dana_page.dart';
 import '../features/layanan/presentation/aju_layanan_page.dart';
@@ -28,6 +30,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: Routes.splash, builder: (_, _) => const SplashPage()),
       GoRoute(path: Routes.login, builder: (_, _) => const LoginPage()),
+      GoRoute(
+        path: '/artikel',
+        builder: (_, _) => const ArtikelPage(),
+        routes: [
+          GoRoute(
+            path: ':id',
+            builder: (_, state) =>
+                ArtikelBacaPage(id: state.pathParameters['id']!),
+          ),
+        ],
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => Scaffold(
           body: shell,

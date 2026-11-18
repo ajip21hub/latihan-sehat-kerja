@@ -11,6 +11,7 @@ import 'package:sehat_kerja/core/storage/token_storage.dart';
 import 'package:sehat_kerja/core/sync/status_socket.dart';
 import 'package:sehat_kerja/data/app_snapshot.dart';
 import 'package:sehat_kerja/data/sehat_api.dart';
+import 'package:sehat_kerja/features/artikel/domain/artikel.dart';
 
 void main() {
   testWidgets('belum masuk menampilkan halaman latihan', (tester) async {
@@ -118,6 +119,11 @@ class _Putus implements KlienSehat {
 
   @override
   Future<AppSnapshot> snapshot() {
+    throw const NetworkFailure();
+  }
+
+  @override
+  Future<List<Artikel>> artikel() {
     throw const NetworkFailure();
   }
 }

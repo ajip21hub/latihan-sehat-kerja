@@ -10,6 +10,7 @@ import 'package:sehat_kerja/core/sync/outbox_sync.dart';
 import 'package:sehat_kerja/data/app_snapshot.dart';
 import 'package:sehat_kerja/data/sehat_api.dart';
 import 'package:sehat_kerja/data/sehat_repository.dart';
+import 'package:sehat_kerja/features/artikel/domain/artikel.dart';
 import 'package:sehat_kerja/features/layanan/domain/pengajuan_layanan.dart';
 
 void main() {
@@ -208,6 +209,76 @@ void main() {
     expect(sisa.single.sidik, 'berubah');
     await db.close();
   });
+
+  test('artikel online mengganti cache dan menghapus id lama', () async {
+    final db = _memori();
+    await db.gantiArtikel([
+      ArtikelCacheCompanion.insert(
+        id: 'lama',
+        judul: 'Lama',
+        ringkas: 'Lama',
+        isi: 'Lama',
+        diperbarui: 1,
+        disimpan: 1,
+      ),
+    ]);
+    final palsu = _Palsu()
+      ..artikelDaftar = const [
+        Artikel(
+          id: 'baru',
+          judul: 'Baru',
+          ringkas: 'Ringkas',
+          isi: 'Isi',
+          diperbarui: 2,
+        ),
+      ];
+    final container = _wadah(TokenStorage(MemoryKeyValueStore()), db, palsu);
+    final hasil = await container.read(sehatRepositoryProvider).muatArtikel();
+    expect(hasil.fromCache, isFalse);
+    expect(hasil.daftar.map((a) => a.id), ['baru']);
+    expect((await db.bacaArtikel()).map((r) => r.id), ['baru']);
+    container.dispose();
+    await db.close();
+  });
+
+  test('artikel offline memakai cache', () async {
+    final db = _memori();
+    await db.gantiArtikel([
+      ArtikelCacheCompanion.insert(
+        id: 'kelas-rawat',
+        judul: 'Kelas',
+        ringkas: 'Ringkas',
+        isi: 'Isi panjang',
+        diperbarui: 9,
+        disimpan: 1,
+      ),
+    ]);
+    final container = _wadah(
+      TokenStorage(MemoryKeyValueStore()),
+      db,
+      _Palsu()..artikelError = const NetworkFailure(),
+    );
+    final hasil = await container.read(sehatRepositoryProvider).muatArtikel();
+    expect(hasil.fromCache, isTrue);
+    expect(hasil.daftar.single.isi, 'Isi panjang');
+    container.dispose();
+    await db.close();
+  });
+
+  test('artikel offline tanpa cache melempar jaringan', () async {
+    final db = _memori();
+    final container = _wadah(
+      TokenStorage(MemoryKeyValueStore()),
+      db,
+      _Palsu()..artikelError = const NetworkFailure(),
+    );
+    await expectLater(
+      container.read(sehatRepositoryProvider).muatArtikel(),
+      throwsA(isA<NetworkFailure>()),
+    );
+    container.dispose();
+    await db.close();
+  });
 }
 
 AppDatabase _memori() => AppDatabase(NativeDatabase.memory());
@@ -252,6 +323,8 @@ AppSnapshot _total(int total) {
 
 class _Palsu implements KlienSehat {
   Failure? snapshotError;
+  Failure? artikelError;
+  List<Artikel> artikelDaftar = const [];
   Failure? outboxError;
   HasilOutbox? outboxHasil;
   AppSnapshot? gantiSnapshot;
@@ -288,5 +361,12 @@ class _Palsu implements KlienSehat {
     final error = snapshotError;
     if (error != null) throw error;
     return gantiSnapshot ?? _contoh();
+  }
+
+  @override
+  Future<List<Artikel>> artikel() async {
+    final error = artikelError;
+    if (error != null) throw error;
+    return artikelDaftar;
   }
 }

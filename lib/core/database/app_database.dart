@@ -37,7 +37,23 @@ class OutboxRows extends Table {
   Set<Column<Object>> get primaryKey => {clientId};
 }
 
-@DriftDatabase(tables: [SnapshotCache, OutboxRows])
+/// Bacaan yang terakhir berhasil diunduh. Diganti utuh tiap sinkron sukses.
+class ArtikelCache extends Table {
+  @override
+  String get tableName => 'artikel_cache';
+
+  TextColumn get id => text()();
+  TextColumn get judul => text()();
+  TextColumn get ringkas => text()();
+  TextColumn get isi => text()();
+  IntColumn get diperbarui => integer()();
+  IntColumn get disimpan => integer()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+@DriftDatabase(tables: [SnapshotCache, OutboxRows, ArtikelCache])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor])
     : super(
@@ -55,7 +71,7 @@ class AppDatabase extends _$AppDatabase {
       );
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -63,6 +79,9 @@ class AppDatabase extends _$AppDatabase {
     onUpgrade: (m, from, to) async {
       if (from < 2) {
         await m.addColumn(outboxRows, outboxRows.batal);
+      }
+      if (from < 3) {
+        await m.createTable(artikelCache);
       }
     },
   );
@@ -141,6 +160,23 @@ class AppDatabase extends _$AppDatabase {
   Future<void> hapusSemua() async {
     await delete(outboxRows).go();
     await delete(snapshotCache).go();
+  }
+
+  /// Mengganti seluruh cache. Id yang tidak ada di [baris] ikut terhapus.
+  Future<void> gantiArtikel(List<ArtikelCacheCompanion> baris) {
+    return transaction(() async {
+      await delete(artikelCache).go();
+      if (baris.isEmpty) return;
+      await batch((b) => b.insertAll(artikelCache, baris));
+    });
+  }
+
+  Future<List<ArtikelCacheData>> bacaArtikel() {
+    return (select(artikelCache)..orderBy([
+          (t) => OrderingTerm.desc(t.diperbarui),
+          (t) => OrderingTerm.asc(t.judul),
+        ]))
+        .get();
   }
 }
 

@@ -67,6 +67,11 @@ class BerandaPage extends ConsumerWidget {
             onPressed: () => context.push('/layanan/baru'),
             child: const Text('Ajukan layanan kesehatan'),
           ),
+          const SizedBox(height: 10),
+          OutlinedButton(
+            onPressed: () => context.push('/artikel'),
+            child: const Text('Bacaan'),
+          ),
         ],
       ),
     );

@@ -666,11 +666,421 @@ class OutboxRowsCompanion extends UpdateCompanion<OutboxRow> {
   }
 }
 
+class $ArtikelCacheTable extends ArtikelCache
+    with TableInfo<$ArtikelCacheTable, ArtikelCacheData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ArtikelCacheTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _judulMeta = const VerificationMeta('judul');
+  @override
+  late final GeneratedColumn<String> judul = GeneratedColumn<String>(
+    'judul',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _ringkasMeta = const VerificationMeta(
+    'ringkas',
+  );
+  @override
+  late final GeneratedColumn<String> ringkas = GeneratedColumn<String>(
+    'ringkas',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _isiMeta = const VerificationMeta('isi');
+  @override
+  late final GeneratedColumn<String> isi = GeneratedColumn<String>(
+    'isi',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _diperbaruiMeta = const VerificationMeta(
+    'diperbarui',
+  );
+  @override
+  late final GeneratedColumn<int> diperbarui = GeneratedColumn<int>(
+    'diperbarui',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _disimpanMeta = const VerificationMeta(
+    'disimpan',
+  );
+  @override
+  late final GeneratedColumn<int> disimpan = GeneratedColumn<int>(
+    'disimpan',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    judul,
+    ringkas,
+    isi,
+    diperbarui,
+    disimpan,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'artikel_cache';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ArtikelCacheData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('judul')) {
+      context.handle(
+        _judulMeta,
+        judul.isAcceptableOrUnknown(data['judul']!, _judulMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_judulMeta);
+    }
+    if (data.containsKey('ringkas')) {
+      context.handle(
+        _ringkasMeta,
+        ringkas.isAcceptableOrUnknown(data['ringkas']!, _ringkasMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_ringkasMeta);
+    }
+    if (data.containsKey('isi')) {
+      context.handle(
+        _isiMeta,
+        isi.isAcceptableOrUnknown(data['isi']!, _isiMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_isiMeta);
+    }
+    if (data.containsKey('diperbarui')) {
+      context.handle(
+        _diperbaruiMeta,
+        diperbarui.isAcceptableOrUnknown(data['diperbarui']!, _diperbaruiMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_diperbaruiMeta);
+    }
+    if (data.containsKey('disimpan')) {
+      context.handle(
+        _disimpanMeta,
+        disimpan.isAcceptableOrUnknown(data['disimpan']!, _disimpanMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_disimpanMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ArtikelCacheData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ArtikelCacheData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      judul: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}judul'],
+      )!,
+      ringkas: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ringkas'],
+      )!,
+      isi: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}isi'],
+      )!,
+      diperbarui: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}diperbarui'],
+      )!,
+      disimpan: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}disimpan'],
+      )!,
+    );
+  }
+
+  @override
+  $ArtikelCacheTable createAlias(String alias) {
+    return $ArtikelCacheTable(attachedDatabase, alias);
+  }
+}
+
+class ArtikelCacheData extends DataClass
+    implements Insertable<ArtikelCacheData> {
+  final String id;
+  final String judul;
+  final String ringkas;
+  final String isi;
+  final int diperbarui;
+  final int disimpan;
+  const ArtikelCacheData({
+    required this.id,
+    required this.judul,
+    required this.ringkas,
+    required this.isi,
+    required this.diperbarui,
+    required this.disimpan,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['judul'] = Variable<String>(judul);
+    map['ringkas'] = Variable<String>(ringkas);
+    map['isi'] = Variable<String>(isi);
+    map['diperbarui'] = Variable<int>(diperbarui);
+    map['disimpan'] = Variable<int>(disimpan);
+    return map;
+  }
+
+  ArtikelCacheCompanion toCompanion(bool nullToAbsent) {
+    return ArtikelCacheCompanion(
+      id: Value(id),
+      judul: Value(judul),
+      ringkas: Value(ringkas),
+      isi: Value(isi),
+      diperbarui: Value(diperbarui),
+      disimpan: Value(disimpan),
+    );
+  }
+
+  factory ArtikelCacheData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ArtikelCacheData(
+      id: serializer.fromJson<String>(json['id']),
+      judul: serializer.fromJson<String>(json['judul']),
+      ringkas: serializer.fromJson<String>(json['ringkas']),
+      isi: serializer.fromJson<String>(json['isi']),
+      diperbarui: serializer.fromJson<int>(json['diperbarui']),
+      disimpan: serializer.fromJson<int>(json['disimpan']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'judul': serializer.toJson<String>(judul),
+      'ringkas': serializer.toJson<String>(ringkas),
+      'isi': serializer.toJson<String>(isi),
+      'diperbarui': serializer.toJson<int>(diperbarui),
+      'disimpan': serializer.toJson<int>(disimpan),
+    };
+  }
+
+  ArtikelCacheData copyWith({
+    String? id,
+    String? judul,
+    String? ringkas,
+    String? isi,
+    int? diperbarui,
+    int? disimpan,
+  }) => ArtikelCacheData(
+    id: id ?? this.id,
+    judul: judul ?? this.judul,
+    ringkas: ringkas ?? this.ringkas,
+    isi: isi ?? this.isi,
+    diperbarui: diperbarui ?? this.diperbarui,
+    disimpan: disimpan ?? this.disimpan,
+  );
+  ArtikelCacheData copyWithCompanion(ArtikelCacheCompanion data) {
+    return ArtikelCacheData(
+      id: data.id.present ? data.id.value : this.id,
+      judul: data.judul.present ? data.judul.value : this.judul,
+      ringkas: data.ringkas.present ? data.ringkas.value : this.ringkas,
+      isi: data.isi.present ? data.isi.value : this.isi,
+      diperbarui: data.diperbarui.present
+          ? data.diperbarui.value
+          : this.diperbarui,
+      disimpan: data.disimpan.present ? data.disimpan.value : this.disimpan,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ArtikelCacheData(')
+          ..write('id: $id, ')
+          ..write('judul: $judul, ')
+          ..write('ringkas: $ringkas, ')
+          ..write('isi: $isi, ')
+          ..write('diperbarui: $diperbarui, ')
+          ..write('disimpan: $disimpan')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, judul, ringkas, isi, diperbarui, disimpan);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ArtikelCacheData &&
+          other.id == this.id &&
+          other.judul == this.judul &&
+          other.ringkas == this.ringkas &&
+          other.isi == this.isi &&
+          other.diperbarui == this.diperbarui &&
+          other.disimpan == this.disimpan);
+}
+
+class ArtikelCacheCompanion extends UpdateCompanion<ArtikelCacheData> {
+  final Value<String> id;
+  final Value<String> judul;
+  final Value<String> ringkas;
+  final Value<String> isi;
+  final Value<int> diperbarui;
+  final Value<int> disimpan;
+  final Value<int> rowid;
+  const ArtikelCacheCompanion({
+    this.id = const Value.absent(),
+    this.judul = const Value.absent(),
+    this.ringkas = const Value.absent(),
+    this.isi = const Value.absent(),
+    this.diperbarui = const Value.absent(),
+    this.disimpan = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ArtikelCacheCompanion.insert({
+    required String id,
+    required String judul,
+    required String ringkas,
+    required String isi,
+    required int diperbarui,
+    required int disimpan,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       judul = Value(judul),
+       ringkas = Value(ringkas),
+       isi = Value(isi),
+       diperbarui = Value(diperbarui),
+       disimpan = Value(disimpan);
+  static Insertable<ArtikelCacheData> custom({
+    Expression<String>? id,
+    Expression<String>? judul,
+    Expression<String>? ringkas,
+    Expression<String>? isi,
+    Expression<int>? diperbarui,
+    Expression<int>? disimpan,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (judul != null) 'judul': judul,
+      if (ringkas != null) 'ringkas': ringkas,
+      if (isi != null) 'isi': isi,
+      if (diperbarui != null) 'diperbarui': diperbarui,
+      if (disimpan != null) 'disimpan': disimpan,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ArtikelCacheCompanion copyWith({
+    Value<String>? id,
+    Value<String>? judul,
+    Value<String>? ringkas,
+    Value<String>? isi,
+    Value<int>? diperbarui,
+    Value<int>? disimpan,
+    Value<int>? rowid,
+  }) {
+    return ArtikelCacheCompanion(
+      id: id ?? this.id,
+      judul: judul ?? this.judul,
+      ringkas: ringkas ?? this.ringkas,
+      isi: isi ?? this.isi,
+      diperbarui: diperbarui ?? this.diperbarui,
+      disimpan: disimpan ?? this.disimpan,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (judul.present) {
+      map['judul'] = Variable<String>(judul.value);
+    }
+    if (ringkas.present) {
+      map['ringkas'] = Variable<String>(ringkas.value);
+    }
+    if (isi.present) {
+      map['isi'] = Variable<String>(isi.value);
+    }
+    if (diperbarui.present) {
+      map['diperbarui'] = Variable<int>(diperbarui.value);
+    }
+    if (disimpan.present) {
+      map['disimpan'] = Variable<int>(disimpan.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ArtikelCacheCompanion(')
+          ..write('id: $id, ')
+          ..write('judul: $judul, ')
+          ..write('ringkas: $ringkas, ')
+          ..write('isi: $isi, ')
+          ..write('diperbarui: $diperbarui, ')
+          ..write('disimpan: $disimpan, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $SnapshotCacheTable snapshotCache = $SnapshotCacheTable(this);
   late final $OutboxRowsTable outboxRows = $OutboxRowsTable(this);
+  late final $ArtikelCacheTable artikelCache = $ArtikelCacheTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -678,6 +1088,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     snapshotCache,
     outboxRows,
+    artikelCache,
   ];
 }
 
@@ -1074,6 +1485,236 @@ typedef $$OutboxRowsTableProcessedTableManager =
       OutboxRow,
       PrefetchHooks Function()
     >;
+typedef $$ArtikelCacheTableCreateCompanionBuilder =
+    ArtikelCacheCompanion Function({
+      required String id,
+      required String judul,
+      required String ringkas,
+      required String isi,
+      required int diperbarui,
+      required int disimpan,
+      Value<int> rowid,
+    });
+typedef $$ArtikelCacheTableUpdateCompanionBuilder =
+    ArtikelCacheCompanion Function({
+      Value<String> id,
+      Value<String> judul,
+      Value<String> ringkas,
+      Value<String> isi,
+      Value<int> diperbarui,
+      Value<int> disimpan,
+      Value<int> rowid,
+    });
+
+class $$ArtikelCacheTableFilterComposer
+    extends Composer<_$AppDatabase, $ArtikelCacheTable> {
+  $$ArtikelCacheTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get judul => $composableBuilder(
+    column: $table.judul,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ringkas => $composableBuilder(
+    column: $table.ringkas,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get isi => $composableBuilder(
+    column: $table.isi,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get diperbarui => $composableBuilder(
+    column: $table.diperbarui,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get disimpan => $composableBuilder(
+    column: $table.disimpan,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ArtikelCacheTableOrderingComposer
+    extends Composer<_$AppDatabase, $ArtikelCacheTable> {
+  $$ArtikelCacheTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get judul => $composableBuilder(
+    column: $table.judul,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ringkas => $composableBuilder(
+    column: $table.ringkas,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get isi => $composableBuilder(
+    column: $table.isi,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get diperbarui => $composableBuilder(
+    column: $table.diperbarui,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get disimpan => $composableBuilder(
+    column: $table.disimpan,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ArtikelCacheTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ArtikelCacheTable> {
+  $$ArtikelCacheTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get judul =>
+      $composableBuilder(column: $table.judul, builder: (column) => column);
+
+  GeneratedColumn<String> get ringkas =>
+      $composableBuilder(column: $table.ringkas, builder: (column) => column);
+
+  GeneratedColumn<String> get isi =>
+      $composableBuilder(column: $table.isi, builder: (column) => column);
+
+  GeneratedColumn<int> get diperbarui => $composableBuilder(
+    column: $table.diperbarui,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get disimpan =>
+      $composableBuilder(column: $table.disimpan, builder: (column) => column);
+}
+
+class $$ArtikelCacheTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ArtikelCacheTable,
+          ArtikelCacheData,
+          $$ArtikelCacheTableFilterComposer,
+          $$ArtikelCacheTableOrderingComposer,
+          $$ArtikelCacheTableAnnotationComposer,
+          $$ArtikelCacheTableCreateCompanionBuilder,
+          $$ArtikelCacheTableUpdateCompanionBuilder,
+          (
+            ArtikelCacheData,
+            BaseReferences<_$AppDatabase, $ArtikelCacheTable, ArtikelCacheData>,
+          ),
+          ArtikelCacheData,
+          PrefetchHooks Function()
+        > {
+  $$ArtikelCacheTableTableManager(_$AppDatabase db, $ArtikelCacheTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ArtikelCacheTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ArtikelCacheTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ArtikelCacheTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> judul = const Value.absent(),
+                Value<String> ringkas = const Value.absent(),
+                Value<String> isi = const Value.absent(),
+                Value<int> diperbarui = const Value.absent(),
+                Value<int> disimpan = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ArtikelCacheCompanion(
+                id: id,
+                judul: judul,
+                ringkas: ringkas,
+                isi: isi,
+                diperbarui: diperbarui,
+                disimpan: disimpan,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String judul,
+                required String ringkas,
+                required String isi,
+                required int diperbarui,
+                required int disimpan,
+                Value<int> rowid = const Value.absent(),
+              }) => ArtikelCacheCompanion.insert(
+                id: id,
+                judul: judul,
+                ringkas: ringkas,
+                isi: isi,
+                diperbarui: diperbarui,
+                disimpan: disimpan,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ArtikelCacheTable, ArtikelCacheData>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $ArtikelCacheTable,
+                    ArtikelCacheData
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ArtikelCacheTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ArtikelCacheTable,
+      ArtikelCacheData,
+      $$ArtikelCacheTableFilterComposer,
+      $$ArtikelCacheTableOrderingComposer,
+      $$ArtikelCacheTableAnnotationComposer,
+      $$ArtikelCacheTableCreateCompanionBuilder,
+      $$ArtikelCacheTableUpdateCompanionBuilder,
+      (
+        ArtikelCacheData,
+        BaseReferences<_$AppDatabase, $ArtikelCacheTable, ArtikelCacheData>,
+      ),
+      ArtikelCacheData,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -1082,4 +1723,6 @@ class $AppDatabaseManager {
       $$SnapshotCacheTableTableManager(_db, _db.snapshotCache);
   $$OutboxRowsTableTableManager get outboxRows =>
       $$OutboxRowsTableTableManager(_db, _db.outboxRows);
+  $$ArtikelCacheTableTableManager get artikelCache =>
+      $$ArtikelCacheTableTableManager(_db, _db.artikelCache);
 }
