@@ -14,15 +14,45 @@ import 'package:sehat_kerja/data/sehat_api.dart';
 import 'package:sehat_kerja/features/artikel/domain/artikel.dart';
 
 void main() {
-  testWidgets('belum masuk menampilkan halaman latihan', (tester) async {
+  testWidgets('pengguna baru melihat onboarding terlebih dahulu, lalu masuk ke login', (
+    tester,
+  ) async {
+    final store = MemoryKeyValueStore();
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          tokenStorageProvider.overrideWithValue(
-            TokenStorage(MemoryKeyValueStore()),
-          ),
+          keyValueStoreProvider.overrideWithValue(store),
+          tokenStorageProvider.overrideWithValue(TokenStorage(store)),
+          appDatabaseProvider.overrideWithValue(db),
+        ],
+        child: const SehatKerjaApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Layanan Kesehatan Terpadu'), findsOneWidget);
+    expect(find.text('Lewati'), findsAtLeastNWidgets(1));
+
+    await tester.tap(find.text('Lewati').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Latihan SehatKerja'), findsOneWidget);
+    expect(find.text('Masuk'), findsOneWidget);
+  });
+
+  testWidgets('belum masuk tetapi sudah onboarding langsung menampilkan halaman login', (
+    tester,
+  ) async {
+    final store = MemoryKeyValueStore();
+    await store.write('onboarding_selesai', 'true');
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          keyValueStoreProvider.overrideWithValue(store),
+          tokenStorageProvider.overrideWithValue(TokenStorage(store)),
           appDatabaseProvider.overrideWithValue(db),
         ],
         child: const SehatKerjaApp(),
@@ -36,7 +66,9 @@ void main() {
   testWidgets('pengajuan offline tampil di beranda dan tetap antre', (
     tester,
   ) async {
-    final storage = TokenStorage(MemoryKeyValueStore());
+    final store = MemoryKeyValueStore();
+    await store.write('onboarding_selesai', 'true');
+    final storage = TokenStorage(store);
     await storage.save(access: 'akses', refresh: 'segar');
     await storage.saveSnapshot(jsonEncode(_snap().toJson()));
     final db = AppDatabase(NativeDatabase.memory());
@@ -58,6 +90,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          keyValueStoreProvider.overrideWithValue(store),
           tokenStorageProvider.overrideWithValue(storage),
           appDatabaseProvider.overrideWithValue(db),
           klienSehatProvider.overrideWithValue(_Putus()),

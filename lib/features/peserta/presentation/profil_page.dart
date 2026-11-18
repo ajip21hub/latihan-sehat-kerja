@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/config/env.dart';
 import '../../../ui/sehat_widgets.dart';
@@ -50,6 +51,11 @@ class ProfilPage extends ConsumerWidget {
             'tidak boleh masuk log. Token juga disamarkan di log debug.',
           ),
           const SizedBox(height: 20),
+          OutlinedButton(
+            onPressed: () => context.push('/onboarding?view=true'),
+            child: const Text('Panduan aplikasi (Onboarding)'),
+          ),
+          const SizedBox(height: 8),
           OutlinedButton(
             onPressed: () async {
               final pesan = await ref.read(sesiProvider.notifier).cekLagi();

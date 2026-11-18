@@ -25,4 +25,49 @@ void main() {
     final ke = authRedirect(const AsyncData('sesi'), Uri.parse('/beranda'));
     expect(ke, isNull);
   });
+
+  test('belum selesai onboarding diarahkan ke /onboarding', () {
+    final ke = authRedirect(
+      const AsyncData(null),
+      Uri.parse('/beranda'),
+      onboardingSelesai: false,
+    );
+    expect(ke, '/onboarding');
+  });
+
+  test('sedang di /onboarding saat belum selesai onboarding tetap di tempat', () {
+    final ke = authRedirect(
+      const AsyncData(null),
+      Uri.parse('/onboarding'),
+      onboardingSelesai: false,
+    );
+    expect(ke, isNull);
+  });
+
+  test('sudah selesai onboarding saat di /onboarding dialihkan ke login', () {
+    final ke = authRedirect(
+      const AsyncData(null),
+      Uri.parse('/onboarding'),
+      onboardingSelesai: true,
+    );
+    expect(ke, '/login');
+  });
+
+  test('sudah selesai onboarding dan login saat di /onboarding dialihkan ke beranda', () {
+    final ke = authRedirect(
+      const AsyncData('sesi'),
+      Uri.parse('/onboarding'),
+      onboardingSelesai: true,
+    );
+    expect(ke, '/beranda');
+  });
+
+  test('mode view di /onboarding tidak dialihkan', () {
+    final ke = authRedirect(
+      const AsyncData('sesi'),
+      Uri.parse('/onboarding?view=true'),
+      onboardingSelesai: true,
+    );
+    expect(ke, isNull);
+  });
 }

@@ -8,6 +8,8 @@ import '../features/dana/presentation/aju_dana_page.dart';
 import '../features/dana/presentation/dana_page.dart';
 import '../features/layanan/presentation/aju_layanan_page.dart';
 import '../features/layanan/presentation/layanan_page.dart';
+import '../features/onboarding/presentation/onboarding_controller.dart';
+import '../features/onboarding/presentation/onboarding_page.dart';
 import '../features/peserta/presentation/beranda_page.dart';
 import '../features/peserta/presentation/login_page.dart';
 import '../features/peserta/presentation/profil_page.dart';
@@ -21,14 +23,33 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   final tick = ValueNotifier(0);
   ref.onDispose(tick.dispose);
   ref.listen(sesiProvider, (_, _) => tick.value++);
+  ref.listen(onboardingProvider, (_, _) => tick.value++);
 
   final router = GoRouter(
     navigatorKey: _rootKey,
     initialLocation: Routes.beranda,
     refreshListenable: tick,
-    redirect: (_, state) => authRedirect(ref.read(sesiProvider), state.uri),
+    redirect: (_, state) {
+      final auth = ref.read(sesiProvider);
+      final onboarding = ref.read(onboardingProvider);
+      final isInitialLoading =
+          (auth.isLoading && !auth.hasValue && !auth.hasError) ||
+          (onboarding.isLoading && !onboarding.hasValue && !onboarding.hasError);
+      return authRedirect(
+        auth,
+        state.uri,
+        onboardingSelesai: onboarding.value ?? false,
+        isInitialLoading: isInitialLoading,
+      );
+    },
     routes: [
       GoRoute(path: Routes.splash, builder: (_, _) => const SplashPage()),
+      GoRoute(
+        path: Routes.onboarding,
+        builder: (_, state) => OnboardingPage(
+          isViewOnly: state.uri.queryParameters['view'] == 'true',
+        ),
+      ),
       GoRoute(path: Routes.login, builder: (_, _) => const LoginPage()),
       GoRoute(
         path: '/artikel',

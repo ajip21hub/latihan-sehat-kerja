@@ -67,6 +67,10 @@ class TokenStorage {
   }
 }
 
+final keyValueStoreProvider = Provider<KeyValueStore>(
+  (ref) => SecureKeyValueStore(),
+);
+
 final tokenStorageProvider = Provider<TokenStorage>(
-  (ref) => TokenStorage(SecureKeyValueStore()),
+  (ref) => TokenStorage(ref.watch(keyValueStoreProvider)),
 );
