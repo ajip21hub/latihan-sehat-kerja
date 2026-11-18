@@ -3,44 +3,57 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/database/app_database.dart';
 import '../core/error/failure.dart';
+import '../core/format.dart';
 import '../core/storage/token_storage.dart';
-import '../core/sync/hari3.dart';
+import '../core/sync/outbox_sync.dart';
+import '../core/sync/status_terapkan.dart';
+import '../features/dana/domain/pengajuan_dana.dart';
+import '../features/layanan/domain/pengajuan_layanan.dart';
 import '../features/peserta/domain/auth_session.dart';
 import 'app_snapshot.dart';
 import 'sehat_api.dart';
 
-/// Jaringan dulu, cache JSON kalau putus.
-///
-/// Hari 3 mengganti [TokenStorage.cachedSnapshot] dengan drift dan
-/// mengantre operasi yang gagal. Hari ini kegagalan jaringan dilempar
-/// ke UI, tidak disimpan diam-diam.
+/// Jaringan dulu. Kalau putus, layar memakai snapshot drift.
+/// Pengajuan baru langsung masuk tabel outbox, lalu dikirim.
 class SehatRepository {
-  SehatRepository({required this._klien, required this._storage});
+  SehatRepository({
+    required this._klien,
+    required this._storage,
+    required this._db,
+  }) {
+    _sync = OutboxSync(db: _db, klien: _klien, muatSnapshot: _muatTanpaSync);
+  }
 
   final KlienSehat _klien;
   final TokenStorage _storage;
+  final AppDatabase _db;
+  late final OutboxSync _sync;
 
+  AppSnapshot? _dasar;
   AppSnapshot? terakhir;
 
   Future<AuthSession?> pulihkan() async {
     final access = await _storage.accessToken;
     if (access == null) {
       terakhir = null;
+      _dasar = null;
       return null;
     }
     try {
       final snap = await _jaga(_klien.snapshot);
       await _ingat(snap);
-      return AuthSession(peserta: snap.peserta);
+      await kirimAntrean();
+      return AuthSession(peserta: terakhir!.peserta);
     } on NetworkFailure {
       final cache = await _bacaCache();
       if (cache == null) rethrow;
-      terakhir = cache.copyWith(fromCache: true);
-      return AuthSession(peserta: cache.peserta, fromCache: true);
+      _dasar = cache.copyWith(fromCache: true);
+      terakhir = await _denganAntrean(_dasar!);
+      return AuthSession(peserta: terakhir!.peserta, fromCache: true);
     } on UnauthorizedFailure {
-      await _storage.clear();
-      terakhir = null;
+      await _hapusLokal();
       return null;
     }
   }
@@ -48,13 +61,17 @@ class SehatRepository {
   Future<AuthSession> masuk(String nomor, String sandi) async {
     final hasil = await _jaga(() => _klien.masuk(nomor.trim(), sandi));
     await _storage.save(access: hasil.accessToken, refresh: hasil.refreshToken);
+    await _db.hapusSemua();
+    _dasar = null;
+    terakhir = null;
     try {
       final snap = await _jaga(_klien.snapshot);
       await _ingat(snap);
-      return AuthSession(peserta: snap.peserta);
+      await kirimAntrean();
+      return AuthSession(peserta: terakhir!.peserta);
     } on NetworkFailure {
       final snap = AppSnapshot.kosong(hasil.peserta, fromCache: true);
-      await _ingat(snap);
+      await _ingat(snap, fromCache: true);
       return AuthSession(peserta: hasil.peserta, fromCache: true);
     }
   }
@@ -62,15 +79,28 @@ class SehatRepository {
   Future<AuthSession> muatUlang() async {
     final snap = await _jaga(_klien.snapshot);
     await _ingat(snap);
-    return AuthSession(peserta: snap.peserta);
+    await kirimAntrean();
+    return AuthSession(
+      peserta: terakhir!.peserta,
+      fromCache: terakhir!.fromCache,
+    );
   }
 
-  Future<void> keluar() async {
-    await _storage.clear();
+  Future<void> keluar() => _hapusLokal();
+
+  void lupakanMemori() {
     terakhir = null;
+    _dasar = null;
   }
 
-  void lupakanMemori() => terakhir = null;
+  Future<LaporanSync> kirimAntrean() async {
+    try {
+      return await _sync.sekarang();
+    } on UnauthorizedFailure {
+      await _hapusLokal();
+      rethrow;
+    }
+  }
 
   Future<void> kirimLayanan({
     required String clientId,
@@ -78,7 +108,7 @@ class SehatRepository {
     required String faskes,
     required String keluhan,
   }) {
-    return _kirim({
+    return _antre({
       'op': 'layanan',
       'clientId': clientId,
       'jenis': jenis,
@@ -88,9 +118,6 @@ class SehatRepository {
     });
   }
 
-  /// [expectedSaldoTotal] mengunci saldo yang dilihat pengguna.
-  /// Kalau server sudah berubah, balasan `saldo_berubah` tidak boleh
-  /// ditandai synced. Hari ini tidak ada baris antrean sama sekali.
   Future<void> kirimDana({
     required String clientId,
     required String jenis,
@@ -98,7 +125,7 @@ class SehatRepository {
     required int nominal,
     required int expectedSaldoTotal,
   }) {
-    return _kirim({
+    return _antre({
       'op': 'dana',
       'clientId': clientId,
       'jenis': jenis,
@@ -108,49 +135,171 @@ class SehatRepository {
     });
   }
 
-  Future<void> _kirim(Map<String, dynamic> op) async {
-    final HasilOutbox hasil;
-    try {
-      hasil = await _jaga(() => _klien.outbox(op));
-    } on NetworkFailure {
-      throw const NetworkFailure(Hari3.belumTerkirim);
+  /// Status dari WebSocket. `true` kalau ada baris yang berubah.
+  Future<bool> terapkanPeristiwa(PeristiwaStatus peristiwa) async {
+    final dasar = _dasar;
+    final layar = terakhir;
+    if (dasar == null || layar == null) return false;
+    final dasarBaru = terapkanStatus(
+      dasar,
+      id: peristiwa.id,
+      clientId: peristiwa.clientId,
+      status: peristiwa.status,
+    );
+    final layarBaru = terapkanStatus(
+      layar,
+      id: peristiwa.id,
+      clientId: peristiwa.clientId,
+      status: peristiwa.status,
+    );
+    if (identical(dasarBaru, dasar) && identical(layarBaru, layar)) {
+      return false;
     }
-    if (!hasil.ok) {
-      if (hasil.code == 'saldo_berubah' || hasil.code == 'nominal_berubah') {
-        await _muatKalauBisa();
-      }
-      throw ServerFailure(hasil.message ?? 'Pengajuan ditolak.');
+    if (!identical(dasarBaru, dasar)) {
+      _dasar = dasarBaru;
+      await _simpanJson(dasarBaru);
     }
+    terakhir = layarBaru;
+    return true;
+  }
+
+  Future<void> _antre(Map<String, dynamic> op) async {
+    final snap = _dasar;
+    if (snap == null) {
+      throw const ServerFailure('Data peserta belum ada. Cek sesi lagi.');
+    }
+    final clientId = '${op['clientId']}';
+    final teks = jsonEncode(op);
+    await _db.antre(
+      clientId: clientId,
+      nomor: snap.peserta.nomor,
+      payload: teks,
+      sidik: teks,
+      dibuat: DateTime.now().millisecondsSinceEpoch,
+    );
+    terakhir = await _denganAntrean(snap);
+    final laporan = await kirimAntrean();
+    final pesan = laporan.gagal[clientId];
+    if (pesan != null) throw ServerFailure(pesan);
+  }
+
+  Future<void> _ingat(AppSnapshot snap, {bool fromCache = false}) async {
+    _dasar = snap.copyWith(fromCache: fromCache);
+    await _simpanJson(_dasar!);
+    terakhir = await _denganAntrean(_dasar!);
+  }
+
+  Future<void> _simpanJson(AppSnapshot snap) async {
+    final json = jsonEncode(snap.toJson());
+    await _db.simpanSnapshot(snap.peserta.nomor, json);
+    await _storage.saveSnapshot(json);
+  }
+
+  Future<AppSnapshot?> _muatTanpaSync() async {
     try {
       final snap = await _jaga(_klien.snapshot);
       await _ingat(snap);
+      return _dasar;
     } on NetworkFailure {
-      throw const NetworkFailure(
-        'Sudah terkirim. Data di layar belum disegarkan.',
-      );
+      return _dasar;
     }
-  }
-
-  Future<void> _muatKalauBisa() async {
-    try {
-      final snap = await _jaga(_klien.snapshot);
-      await _ingat(snap);
-    } on Failure {
-      // Konflik tetap dilaporkan ke UI meski refresh gagal.
-    }
-  }
-
-  Future<void> _ingat(AppSnapshot snap) async {
-    terakhir = snap;
-    await _storage.saveSnapshot(jsonEncode(snap.toJson()));
   }
 
   Future<AppSnapshot?> _bacaCache() async {
-    final raw = await _storage.cachedSnapshot;
+    final dariDrift = await _db.bacaSnapshot();
+    final snap = _parse(dariDrift) ?? _parse(await _storage.cachedSnapshot);
+    if (snap == null) return null;
+    if (dariDrift == null || dariDrift.isEmpty) {
+      await _db.simpanSnapshot(snap.peserta.nomor, jsonEncode(snap.toJson()));
+    }
+    return snap;
+  }
+
+  AppSnapshot? _parse(String? raw) {
     if (raw == null || raw.isEmpty) return null;
-    final decoded = jsonDecode(raw);
-    if (decoded is! Map) return null;
-    return AppSnapshot.fromJson(decoded.cast<String, dynamic>());
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      return AppSnapshot.fromJson(decoded.cast<String, dynamic>());
+    } on FormatException {
+      return null;
+    }
+  }
+
+  Future<AppSnapshot> _denganAntrean(AppSnapshot dasar) async {
+    final baris = await _db.belumTerkirim();
+    if (baris.isEmpty) return dasar;
+    var layanan = dasar.layanan;
+    var dana = dasar.dana;
+    for (final row in baris) {
+      final Object? decoded;
+      try {
+        decoded = jsonDecode(row.payload);
+      } on FormatException {
+        continue;
+      }
+      if (decoded is! Map) continue;
+      final op = decoded.cast<String, dynamic>();
+      try {
+        if (op['op'] == 'layanan') {
+          final sudah = layanan.any(
+            (item) => item.id == row.clientId || item.clientId == row.clientId,
+          );
+          if (sudah) continue;
+          layanan = [_layananLokal(dasar, op), ...layanan];
+        } else if (op['op'] == 'dana') {
+          final sudah = dana.any(
+            (item) => item.id == row.clientId || item.clientId == row.clientId,
+          );
+          if (sudah) continue;
+          dana = [_danaLokal(dasar, op), ...dana];
+        }
+      } on ArgumentError {
+        continue;
+      } on FormatException {
+        continue;
+      } on TypeError {
+        continue;
+      }
+    }
+    if (identical(layanan, dasar.layanan) && identical(dana, dasar.dana)) {
+      return dasar;
+    }
+    return dasar.copyWith(layanan: layanan, dana: dana);
+  }
+
+  PengajuanLayanan _layananLokal(AppSnapshot dasar, Map<String, dynamic> op) {
+    return PengajuanLayanan(
+      id: '${op['clientId']}',
+      clientId: '${op['clientId']}',
+      nomorPeserta: dasar.peserta.nomor,
+      jenis: JenisLayanan.values.byName('${op['jenis']}'),
+      faskes: '${op['faskes']}',
+      tanggal: DateTime.parse('${op['tanggal']}'),
+      keluhan: '${op['keluhan']}',
+      status: StatusPengajuan.diajukan,
+    );
+  }
+
+  PengajuanDana _danaLokal(AppSnapshot dasar, Map<String, dynamic> op) {
+    final nominal = (op['nominal'] as num).toInt();
+    return PengajuanDana(
+      id: '${op['clientId']}',
+      clientId: '${op['clientId']}',
+      nomorPeserta: dasar.peserta.nomor,
+      jenis: JenisAmbil.values.byName('${op['jenis']}'),
+      nominal: nominal,
+      alasan: '${op['alasan']}',
+      status: StatusPengajuan.diajukan,
+      perkiraanHariKerja: perkiraanHariKerja(nominal),
+    );
+  }
+
+  Future<void> _hapusLokal() async {
+    await _storage.clear();
+    await _db.hapusSemua();
+    terakhir = null;
+    _dasar = null;
   }
 
   Future<T> _jaga<T>(Future<T> Function() jalan) async {
@@ -168,5 +317,10 @@ final sehatRepositoryProvider = Provider<SehatRepository>((ref) {
   return SehatRepository(
     klien: ref.watch(klienSehatProvider),
     storage: ref.watch(tokenStorageProvider),
+    db: ref.watch(appDatabaseProvider),
   );
+});
+
+final menungguProvider = StreamProvider<int>((ref) {
+  return ref.watch(appDatabaseProvider).watchMenunggu();
 });

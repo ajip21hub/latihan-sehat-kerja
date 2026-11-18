@@ -5,6 +5,7 @@ enum JenisAmbil { seluruhnya, sebagian10 }
 class PengajuanDana {
   const PengajuanDana({
     required this.id,
+    this.clientId,
     required this.nomorPeserta,
     required this.jenis,
     required this.nominal,
@@ -14,6 +15,7 @@ class PengajuanDana {
   });
 
   final String id;
+  final String? clientId;
   final String nomorPeserta;
   final JenisAmbil jenis;
   final int nominal;
@@ -23,6 +25,17 @@ class PengajuanDana {
 
   bool get masihBerjalan =>
       status == StatusPengajuan.diajukan || status == StatusPengajuan.diproses;
+
+  PengajuanDana copyWith({StatusPengajuan? status}) => PengajuanDana(
+    id: id,
+    clientId: clientId,
+    nomorPeserta: nomorPeserta,
+    jenis: jenis,
+    nominal: nominal,
+    alasan: alasan,
+    status: status ?? this.status,
+    perkiraanHariKerja: perkiraanHariKerja,
+  );
 
   String get jenisLabel => switch (jenis) {
     JenisAmbil.seluruhnya => 'Seluruh saldo',
@@ -35,6 +48,7 @@ class PengajuanDana {
   }) {
     return PengajuanDana(
       id: '${json['id']}',
+      clientId: json['clientId']?.toString(),
       nomorPeserta: '${json['nomorPeserta'] ?? nomor}',
       jenis: JenisAmbil.values.byName('${json['jenis']}'),
       nominal: (json['nominal'] as num).toInt(),
@@ -46,6 +60,7 @@ class PengajuanDana {
 
   Map<String, dynamic> toJson() => {
     'id': id,
+    if (clientId != null) 'clientId': clientId,
     'nomorPeserta': nomorPeserta,
     'jenis': jenis.name,
     'nominal': nominal,

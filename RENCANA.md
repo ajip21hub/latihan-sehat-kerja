@@ -13,7 +13,7 @@ JHT (Jaminan Hari Tua) bukan dana pensiun bulanan. Jaminan Pensiun (JP) itu manf
 
 Dari kanal publik (bukan salinan peraturan): pengambilan sebagian 10% untuk peserta yang masih aktif umumnya mensyaratkan kepesertaan minimal 10 tahun. Ada juga jalur 30% untuk kepemilikan rumah. Pencairan seluruh saldo punya syarat sendiri, misalnya usia 56, berhenti, atau PHK, plus dokumen. Perkiraan 1 hari kerja di bawah Rp10 juta dan 5 hari kerja di atasnya hanya label belajar.
 
-## Versi simple ini memakai Hari 1–2
+## Versi simple ini memakai Hari 1–3
 
 | Materi | Dipakai di |
 |---|---|
@@ -30,6 +30,14 @@ Dari kanal publik (bukan salinan peraturan): pengambilan sebagian 10% untuk pese
 | Pinning (Hari 2) | stub/io, sengaja mati karena backend HTTP |
 | Log tanpa token (Hari 2) | `redactSecrets` |
 | Debounce cari (Hari 2) | `saringanLayananProvider`, filter lokal |
+| drift, network-first (Hari 3) | `snapshot_cache`. Jaringan gagal memakai baris ini, lalu JSON lama di secure storage |
+| Outbox (Hari 3) | `outbox_rows`. Kirim offline langsung tersimpan, `synced = false` |
+| Sidik / race (Hari 3) | `tandaiSynced` hanya jika payload yang dikirim masih sama |
+| Konflik saldo (Hari 3) | `saldo_berubah` dan `nominal_berubah` tidak di-synced. `expectedSaldoTotal` (dan nominal) ditulis ulang |
+| Penolakan (Hari 3) | `ditolak` dan `jenis` ditandai `batal`, tidak diulang |
+| Antrean saat aplikasi terbuka | Banner “Kirim sekarang”, plus kirim lagi setelah sesi pulih |
+| Background sync (Hari 3) | workmanager Android, kira-kira tiap 15 menit, hanya kalau ada jaringan |
+| WebSocket (Hari 3) | `ws://<host>:8787/v1/stream?token=`, jeda sambung 1–15 detik |
 
 ## Akun latihan
 
@@ -48,22 +56,21 @@ Dari kanal publik (bukan salinan peraturan): pengambilan sebagian 10% untuk pese
 4. Dana: lihat pecahan saldo, ajukan 10% atau seluruhnya. Use case yang memutuskan, bukan halaman.
 5. Profil: NIK disamarkan. Keluar.
 
-## Siap untuk Hari 3
+## Offline-first dan background sync
 
-Yang sudah ada, supaya besok tinggal menyambung:
+Pengajuan tidak menunggu jawaban server sebelum muncul di layar. Barisnya masuk `outbox_rows` dulu. Kalau `POST /v1/outbox` putus, baris tetap `synced = false` dan pita “Kirim sekarang” muncul di Beranda, Layanan, dan Dana.
 
-- `GET /v1/snapshot` dan `POST /v1/outbox` dipanggil saat online.
-- JSON snapshot di secure storage (`cached_snapshot`). Besok diganti tabel drift, UI tidak perlu tahu.
-- `saldo_berubah` dan `nominal_berubah` melempar gagal lalu mencoba muat ulang. Tidak ada baris yang ditandai synced.
-- `clientId` ikut di setiap operasi. Server menolak dobel dengan `alreadyApplied`.
-- Kalau kirim gagal karena jaringan, UI menampilkan `Hari3.belumTerkirim` di `lib/core/sync/hari3.dart`. Antrean belum disimpan.
-- WebSocket `GET /v1/stream` sudah ada di backend. Klien belum menyambung.
-- workmanager belum dipasang.
+Saat jaringan ada, semua baris yang belum selesai dikirim sekaligus. Sukses atau `alreadyApplied` menandai synced hanya kalau sidik payload belum berubah. `saldo_berubah` dan `nominal_berubah` tetap antre, saldo di layar dimuat ulang, lalu angka di payload disesuaikan. `ditolak` dan `jenis` selesai.
+
+Snapshot tetap bentuk `AppSnapshot`. Sumbernya tabel `snapshot_cache` (skema versi 2; migrasi dari versi 1 menambah kolom `batal`). JSON `cached_snapshot` hanya dibaca kalau tabel masih kosong, supaya sesi lama tidak hilang.
+
+WorkManager berjalan di isolate sendiri, hanya Android, minimal 15 menit, dan hanya saat jaringan tersambung. Chrome, desktop, dan iOS mengirim antrean selagi aplikasi terbuka: saat sesi dipulihkan, saat “Cek sesi lagi”, dan lewat tombol. WebSocket status memakai `web_socket_channel` supaya jalan di web maupun VM. Sambungan putus dicoba lagi dengan jeda 1, 2, 4, 8, lalu 15 detik.
+
+Enkripsi file SQLite (sqlite3mc) tidak dipasang. `connectivity_plus` juga tidak, karena di tes widget plugin-nya sering tidak ada.
 
 ## Sengaja belum dibuat
 
-- Menyimpan pengajuan saat offline dan menyinkronkan nanti (Hari 3, lihat di atas).
-- Status pengajuan yang berubah dari server lewat WebSocket (Hari 3).
+- Enkripsi database dan background sync iOS.
 - Unggah KTP, swafoto, dan verifikasi wajah.
 - Kelas rawat yang naik-turun, iuran, dan rujukan faskes.
 - Jaminan Pensiun bulanan, JKK, dan JKM.

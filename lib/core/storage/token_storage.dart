@@ -45,7 +45,8 @@ class TokenStorage {
   static const _accessKey = 'access_token';
   static const _refreshKey = 'refresh_token';
 
-  /// JSON snapshot terakhir. Hari 3 mengganti kunci ini dengan tabel drift.
+  /// Cadangan JSON. Drift adalah sumber utama; kunci ini dipakai
+  /// sekali untuk sesi yang tersimpan sebelum tabel snapshot ada.
   static const _snapshotKey = 'cached_snapshot';
 
   Future<String?> get accessToken => _store.read(_accessKey);

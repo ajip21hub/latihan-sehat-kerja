@@ -13,6 +13,7 @@ enum StatusPengajuan {
 class PengajuanLayanan {
   const PengajuanLayanan({
     required this.id,
+    this.clientId,
     required this.nomorPeserta,
     required this.jenis,
     required this.faskes,
@@ -22,6 +23,7 @@ class PengajuanLayanan {
   });
 
   final String id;
+  final String? clientId;
   final String nomorPeserta;
   final JenisLayanan jenis;
   final String faskes;
@@ -36,12 +38,24 @@ class PengajuanLayanan {
 
   String get statusLabel => status.label;
 
+  PengajuanLayanan copyWith({StatusPengajuan? status}) => PengajuanLayanan(
+    id: id,
+    clientId: clientId,
+    nomorPeserta: nomorPeserta,
+    jenis: jenis,
+    faskes: faskes,
+    tanggal: tanggal,
+    keluhan: keluhan,
+    status: status ?? this.status,
+  );
+
   factory PengajuanLayanan.fromJson(
     Map<String, dynamic> json, {
     required String nomor,
   }) {
     return PengajuanLayanan(
       id: '${json['id']}',
+      clientId: json['clientId']?.toString(),
       nomorPeserta: '${json['nomorPeserta'] ?? nomor}',
       jenis: JenisLayanan.values.byName('${json['jenis']}'),
       faskes: '${json['faskes']}',
@@ -53,6 +67,7 @@ class PengajuanLayanan {
 
   Map<String, dynamic> toJson() => {
     'id': id,
+    if (clientId != null) 'clientId': clientId,
     'nomorPeserta': nomorPeserta,
     'jenis': jenis.name,
     'faskes': faskes,

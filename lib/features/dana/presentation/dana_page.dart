@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/format.dart';
 import '../../../ui/sehat_widgets.dart';
+import '../../peserta/presentation/pita_antrean.dart';
 import '../../peserta/presentation/sesi_controller.dart';
 import 'dana_controller.dart';
 
@@ -19,6 +20,7 @@ class DanaPage extends ConsumerWidget {
       appBar: AppBar(title: const Text('Dana hari tua')),
       body: SehatScroll(
         children: [
+          const PitaAntrean(),
           Catatan('Kepesertaan ${peserta.tahunKepesertaan} tahun'),
           const SizedBox(height: 8),
           Uang(rupiah(dana.saldo.total)),

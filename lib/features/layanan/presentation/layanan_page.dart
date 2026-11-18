@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../ui/sehat_theme.dart';
 import '../../../ui/sehat_widgets.dart';
+import '../../peserta/presentation/pita_antrean.dart';
 import 'layanan_controller.dart';
 
 class LayananPage extends ConsumerWidget {
@@ -25,6 +26,10 @@ class LayananPage extends ConsumerWidget {
           constraints: const BoxConstraints(maxWidth: 640),
           child: Column(
             children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 4, 20, 0),
+                child: PitaAntrean(),
+              ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
                 child: TextField(

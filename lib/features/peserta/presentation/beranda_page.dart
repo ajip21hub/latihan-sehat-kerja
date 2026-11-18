@@ -6,6 +6,7 @@ import '../../../core/format.dart';
 import '../../../ui/sehat_theme.dart';
 import '../../../ui/sehat_widgets.dart';
 import '../../dana/presentation/dana_controller.dart';
+import 'pita_antrean.dart';
 import 'sesi_controller.dart';
 
 class BerandaPage extends ConsumerWidget {
@@ -24,8 +25,9 @@ class BerandaPage extends ConsumerWidget {
           if (sesi.fromCache)
             const PitaLuring(
               'Jaringan belum terbaca. Token tidak dihapus. '
-              'Kirim pengajuan baru menunggu Hari 3.',
+              'Pengajuan baru tetap tersimpan di perangkat.',
             ),
+          const PitaAntrean(),
           KartuPeserta(peserta: peserta),
           const SizedBox(height: 16),
           Lembaran(

@@ -16,7 +16,6 @@ class SesiController extends AsyncNotifier<AuthSession?> {
         if (!ref.mounted) return;
         ref.read(sehatRepositoryProvider).lupakanMemori();
         state = const AsyncData(null);
-        ref.invalidate(snapshotProvider);
       });
     });
     return ref.read(sehatRepositoryProvider).pulihkan();
@@ -26,17 +25,35 @@ class SesiController extends AsyncNotifier<AuthSession?> {
     try {
       final sesi = await ref.read(sehatRepositoryProvider).masuk(nomor, sandi);
       state = AsyncData(sesi);
-      ref.invalidate(snapshotProvider);
       return null;
     } on Failure catch (e) {
       return e.message;
+    } catch (_) {
+      return 'Data lokal gagal dibuka. Muat ulang aplikasi.';
     }
   }
 
   Future<void> keluar() async {
     await ref.read(sehatRepositoryProvider).keluar();
     state = const AsyncData(null);
-    ref.invalidate(snapshotProvider);
+  }
+
+  /// Mengirim antrean tanpa mengubah sesi menjadi loading.
+  Future<String?> kirimAntrean() async {
+    final sebelumnya = state.value;
+    try {
+      final laporan = await ref.read(sehatRepositoryProvider).kirimAntrean();
+      final terakhir = ref.read(sehatRepositoryProvider).terakhir;
+      if (terakhir != null && sebelumnya != null) {
+        state = AsyncData(
+          AuthSession(peserta: terakhir.peserta, fromCache: terakhir.fromCache),
+        );
+      }
+      if (laporan.gagal.isEmpty) return null;
+      return laporan.gagal.values.first;
+    } on Failure catch (e) {
+      return e.message;
+    }
   }
 
   /// Coba jaringan lagi tanpa membuang sesi yang sedang tampil.
@@ -46,7 +63,6 @@ class SesiController extends AsyncNotifier<AuthSession?> {
     try {
       final sesi = await ref.read(sehatRepositoryProvider).muatUlang();
       state = AsyncData(sesi);
-      ref.invalidate(snapshotProvider);
       return null;
     } on NetworkFailure catch (e) {
       if (sebelumnya != null) {

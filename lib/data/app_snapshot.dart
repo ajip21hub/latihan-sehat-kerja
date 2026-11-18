@@ -3,8 +3,7 @@ import '../features/dana/domain/saldo_jht.dart';
 import '../features/layanan/domain/pengajuan_layanan.dart';
 import '../features/peserta/domain/peserta.dart';
 
-/// Isi `GET /v1/snapshot`. Bentuk yang sama disimpan sebagai JSON
-/// sampai Hari 3 menggantinya dengan drift.
+/// Isi `GET /v1/snapshot`. Disimpan di drift sebagai JSON.
 class AppSnapshot {
   const AppSnapshot({
     required this.peserta,
@@ -20,11 +19,16 @@ class AppSnapshot {
   final List<PengajuanDana> dana;
   final bool fromCache;
 
-  AppSnapshot copyWith({bool? fromCache}) => AppSnapshot(
+  AppSnapshot copyWith({
+    bool? fromCache,
+    SaldoJht? saldo,
+    List<PengajuanLayanan>? layanan,
+    List<PengajuanDana>? dana,
+  }) => AppSnapshot(
     peserta: peserta,
-    saldo: saldo,
-    layanan: layanan,
-    dana: dana,
+    saldo: saldo ?? this.saldo,
+    layanan: layanan ?? this.layanan,
+    dana: dana ?? this.dana,
     fromCache: fromCache ?? this.fromCache,
   );
 
