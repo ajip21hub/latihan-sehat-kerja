@@ -3,6 +3,7 @@
 Aplikasi belajar Hari 1–3: data peserta, kelas layanan, pengajuan layanan kesehatan, saldo JHT, pengajuan pengambilan dana, dan bacaan yang di-cache. Jaringan memakai backend lokal (Dio, refresh token, sesi dari cache). Pengajuan offline masuk antrean drift, dikirim lagi saat aplikasi terbuka, dan di Android juga lewat WorkManager. Artikel diunduh dari server lalu disimpan di perangkat. Status pengajuan mengikuti WebSocket backend.
 
 Bukan aplikasi BPJS. Rencana dan batasannya ada di [RENCANA.md](RENCANA.md).
+Panduan integrasi dan rilis CI/CD ada di [CI_CD_GUIDE.md](CI_CD_GUIDE.md).
 
 Jalankan backend dulu, lalu aplikasi. Proses yang sudah jalan sebelum perubahan ini perlu di-restart.
 

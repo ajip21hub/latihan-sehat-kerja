@@ -54,3 +54,10 @@ firebase.json
 firebase_options.dart
 *.env
 *.env.*
+
+# Android Keystore & Signing Secrets
+*.jks
+*.keystore
+key.properties
+**/android/key.properties
+
