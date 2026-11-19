@@ -15,9 +15,37 @@ on:
           - 'apk'
           - 'appbundle'
           - 'both'
+      play_track:
+        description: 'Publish AAB ke track Google Play (none = tidak publish)'
+        required: true
+        default: 'none'
+        type: choice
+        options:
+          - 'none'
+          - 'internal'
+          - 'alpha'
+          - 'beta'
+          - 'production'
+      release_status:
+        description: 'Status rilis di Play (draft = harus di-rollout manual di Play Console)'
+        required: true
+        default: 'completed'
+        type: choice
+        options:
+          - 'completed'
+          - 'draft'
 
 permissions:
   contents: read
+
+# Rilis tidak boleh saling tumpang tindih (Play API memakai satu "edit" per upload).
+concurrency:
+  group: cd-android-release
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: '3.47.9'  # samakan dengan versi lokal; naikkan sengaja, bukan otomatis
+  PACKAGE_NAME: 'id.pelatihan.belajar.sehat_kerja'
 
 jobs:
   ci:
@@ -30,24 +58,69 @@ jobs:
     name: Build Android Release
     needs: ci
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: write  # hanya untuk membuat GitHub Release
+    outputs:
+      play_track: ${{ steps.meta.outputs.play_track }}
+      release_status: ${{ steps.meta.outputs.release_status }}
+      release_name: ${{ steps.meta.outputs.release_name }}
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v5
+
+      - name: Resolve Version & Play Target
+        id: meta
+        env:
+          # Tag: publish hanya jika vars.PLAY_TRACK diisi (opt-in). Manual: dari input.
+          PLAY_TRACK: ${{ github.event_name == 'workflow_dispatch' && inputs.play_track || vars.PLAY_TRACK || 'none' }}
+          RELEASE_STATUS: ${{ github.event_name == 'workflow_dispatch' && inputs.release_status || vars.PLAY_RELEASE_STATUS || 'completed' }}
+          BUILD_AAB: ${{ github.event_name == 'push' || inputs.build_type != 'apk' }}
+          VERSION_CODE_OFFSET: ${{ vars.VERSION_CODE_OFFSET || '0' }}
+        run: |
+          set -euo pipefail
+          case "$PLAY_TRACK" in none|internal|alpha|beta|production) ;; *)
+            echo "::error::PLAY_TRACK tidak dikenal: '$PLAY_TRACK'"; exit 1 ;;
+          esac
+          case "$RELEASE_STATUS" in completed|draft) ;; *)
+            echo "::error::PLAY_RELEASE_STATUS tidak dikenal: '$RELEASE_STATUS'"; exit 1 ;;
+          esac
+          if [ "$PLAY_TRACK" != "none" ] && [ "$BUILD_AAB" != "true" ]; then
+            echo "::error::Publish ke Play butuh AAB. Pilih build_type 'appbundle' atau 'both'."; exit 1
+          fi
+
+          # versionCode wajib selalu naik di Play: pakai nomor run workflow ini.
+          build_number=$(( GITHUB_RUN_NUMBER + VERSION_CODE_OFFSET ))
+          build_name=$(sed -nE 's/^version:[[:space:]]*([^+[:space:]]+).*/\1/p' pubspec.yaml)
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            build_name="${GITHUB_REF_NAME#v}"
+            if ! [[ "$build_name" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+].*)?$ ]]; then
+              echo "::error::Tag '$GITHUB_REF_NAME' bukan semver (contoh benar: v1.2.3)"; exit 1
+            fi
+          fi
+
+          {
+            echo "build_name=$build_name"
+            echo "build_number=$build_number"
+            echo "release_name=$build_name ($build_number)"
+            echo "play_track=$PLAY_TRACK"
+            echo "release_status=$RELEASE_STATUS"
+          } >> "$GITHUB_OUTPUT"
+          echo "### Versi $build_name ($build_number) -> Play track: $PLAY_TRACK ($RELEASE_STATUS)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Setup Java 17
         uses: actions/setup-java@v5
         with:
           distribution: 'zulu'
           java-version: '17'
+          cache: gradle
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          flutter-version: '3.47.9'  # samakan dengan versi lokal; naikkan sengaja, bukan otomatis
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
       - name: Setup Firebase Config
@@ -92,18 +165,30 @@ jobs:
           EOF
 
       - name: Install Dependencies
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
       - name: Run Drift Code Generation
         run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Build Android APK
         if: ${{ github.event_name == 'push' || inputs.build_type == 'apk' || inputs.build_type == 'both' }}
-        run: flutter build apk --release --split-per-abi --obfuscate --split-debug-info=build/symbols --dart-define-from-file=config/prod.json
+        env:
+          BUILD_NAME: ${{ steps.meta.outputs.build_name }}
+          BUILD_NUMBER: ${{ steps.meta.outputs.build_number }}
+        run: |
+          flutter build apk --release --split-per-abi --obfuscate --split-debug-info=build/symbols \
+            --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER" \
+            --dart-define-from-file=config/prod.json
 
       - name: Build Android App Bundle (AAB)
         if: ${{ github.event_name == 'push' || inputs.build_type == 'appbundle' || inputs.build_type == 'both' }}
-        run: flutter build appbundle --release --obfuscate --split-debug-info=build/symbols --dart-define-from-file=config/prod.json
+        env:
+          BUILD_NAME: ${{ steps.meta.outputs.build_name }}
+          BUILD_NUMBER: ${{ steps.meta.outputs.build_number }}
+        run: |
+          flutter build appbundle --release --obfuscate --split-debug-info=build/symbols \
+            --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER" \
+            --dart-define-from-file=config/prod.json
 
       - name: Verify Release Signature (bukan debug key)
         run: |
@@ -138,21 +223,29 @@ jobs:
         run: rm -f android/app/upload-keystore.jks android/key.properties android/app/google-services.json lib/firebase_options.dart
 
       - name: Upload Debug Symbols (private artifact, untuk deobfuscate crash)
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: debug-symbols
           path: build/symbols
           retention-days: 90
 
+      - name: Upload R8 Mapping (untuk deobfuscate crash Java/Kotlin)
+        uses: actions/upload-artifact@v6
+        with:
+          name: r8-mapping
+          path: build/app/outputs/mapping/release/mapping.txt
+          if-no-files-found: ignore
+          retention-days: 90
+
       - name: Upload APKs to Artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         if: ${{ github.event_name == 'push' || inputs.build_type == 'apk' || inputs.build_type == 'both' }}
         with:
           name: release-apks
           path: build/app/outputs/flutter-apk/*.apk
 
       - name: Upload App Bundle to Artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         if: ${{ github.event_name == 'push' || inputs.build_type == 'appbundle' || inputs.build_type == 'both' }}
         with:
           name: release-appbundle
@@ -168,3 +261,60 @@ jobs:
             build/app/outputs/bundle/release/*.aab
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-play:
+    name: Publish ke Google Play (${{ needs.build-android.outputs.play_track }})
+    needs: build-android
+    if: ${{ needs.build-android.outputs.play_track != 'none' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Satu environment per track. Pasang "Required reviewers" di play-production
+    # agar rilis produksi harus disetujui dulu.
+    environment:
+      name: play-${{ needs.build-android.outputs.play_track }}
+
+    steps:
+      - name: Checkout Release Notes
+        uses: actions/checkout@v5
+        with:
+          sparse-checkout: distribution
+
+      - name: Download App Bundle
+        uses: actions/download-artifact@v7
+        with:
+          name: release-appbundle
+          path: dist
+
+      - name: Download R8 Mapping
+        uses: actions/download-artifact@v7
+        continue-on-error: true  # tidak ada jika R8 dimatikan
+        with:
+          name: r8-mapping
+          path: dist/mapping
+
+      - name: Prepare Upload
+        id: files
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          if [ -z "$PLAY_SERVICE_ACCOUNT_JSON" ]; then
+            echo "::error::Secret PLAY_SERVICE_ACCOUNT_JSON belum diisi"; exit 1
+          fi
+          ls dist/*.aab >/dev/null
+          mapping=""; [ -f dist/mapping/mapping.txt ] && mapping="dist/mapping/mapping.txt"
+          whatsnew=""; [ -d distribution/whatsnew ] && whatsnew="distribution/whatsnew"
+          echo "mapping=$mapping" >> "$GITHUB_OUTPUT"
+          echo "whatsnew=$whatsnew" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to Google Play
+        uses: r0adkll/upload-google-play@v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ env.PACKAGE_NAME }}
+          releaseFiles: dist/*.aab
+          releaseName: ${{ needs.build-android.outputs.release_name }}
+          track: ${{ needs.build-android.outputs.play_track }}
+          status: ${{ needs.build-android.outputs.release_status }}
+          mappingFile: ${{ steps.files.outputs.mapping }}
+          whatsNewDirectory: ${{ steps.files.outputs.whatsnew }}

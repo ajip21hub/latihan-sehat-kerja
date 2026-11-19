@@ -15,7 +15,7 @@ Dokumen ini menjelaskan alur kerja (*pipeline*) Continuous Integration (CI) dan 
 | Workflow File | Trigger | Tugas Utama |
 | :--- | :--- | :--- |
 | **`ci.yml`** | Push dan PR ke `main`, `master`, `develop`; juga dipanggil oleh `cd-android.yml` | Tiga job berjalan paralel:<br>**test:** `pub get --enforce-lockfile` (lockfile wajib cocok dengan `pubspec.yaml`), format (`dart format`), analisis ketat (`flutter analyze --fatal-infos --fatal-warnings`), backend self-check, validasi codegen drift (`build_runner` + `git diff`), test dengan coverage minimum `MIN_COVERAGE` (default 50%, tanpa file generated; angka tampil di ringkasan run).<br>**build-android:** build APK debug dengan config Firebase placeholder untuk memastikan proyek Android masih bisa di-compile. APK di-upload sebagai artifact `debug-apk` (7 hari) agar reviewer bisa mencoba. Job ini dilewati saat dipanggil dari `cd-android.yml`.<br>**security:** secret scan (gitleaks), audit dependensi (OSV, `pubspec.lock`), larangan file rahasia ter-commit, cek manifest release HTTPS-only dan tidak `debuggable`. |
-| **`cd-android.yml`** | Tag `v*` (contoh: `v1.0.0`) atau manual (*workflow_dispatch*) | Menjalankan `ci.yml` sebagai gerbang, lalu: injeksi Firebase config dan keystore, generate `config/prod.json` (wajib HTTPS), build APK (`--split-per-abi`) dan AAB dengan `--obfuscate`, verifikasi tanda tangan (APK dan AAB tidak boleh debug key), upload artifact dan debug symbols, publikasi ke GitHub Release (khusus tag). |
+| **`cd-android.yml`** | Tag `v*` (contoh: `v1.0.0`) atau manual (*workflow_dispatch*) | Menjalankan `ci.yml` sebagai gerbang, lalu: injeksi Firebase config dan keystore, generate `config/prod.json` (wajib HTTPS), build APK (`--split-per-abi`) dan AAB dengan `--obfuscate`, verifikasi tanda tangan (APK dan AAB tidak boleh debug key), upload artifact, debug symbols, dan mapping R8, publikasi ke GitHub Release (khusus tag).<br>**publish-play:** upload AAB ke track Google Play (internal/alpha/beta/production). Hanya berjalan jika track dipilih; lihat bagian 5. |
 
 ---
 
@@ -106,9 +106,13 @@ git push repo-latihan-sehat-kerja v1.0.0
 #### Cara 2: Manual (*workflow_dispatch*)
 1. Buka tab **Actions**.
 2. Pilih **CD Android (Release Build)**.
-3. Klik **Run workflow**, pilih target (`apk`, `appbundle`, atau `both`), lalu **Run workflow**.
+3. Klik **Run workflow**, pilih target (`apk`, `appbundle`, atau `both`), track Play (`none` = tidak publish), dan status rilis, lalu **Run workflow**.
 
-Hasil manual hanya tersedia sebagai artifact; GitHub Release hanya dibuat dari tag.
+Hasil manual tersedia sebagai artifact (dan di Play jika track dipilih); GitHub Release hanya dibuat dari tag.
+
+Versi aplikasi diatur otomatis:
+- `versionName`: dari tag (`v1.2.3` menjadi `1.2.3`). Tag yang bukan semver ditolak. Run manual memakai versi di `pubspec.yaml`.
+- `versionCode`: nomor run workflow `cd-android` (`github.run_number`) ditambah `vars.VERSION_CODE_OFFSET`. Angka ini selalu naik, sesuai syarat Play. Angka `+N` di `pubspec.yaml` tidak dipakai untuk build rilis.
 
 ### C. Debug symbols
 Build memakai `--obfuscate`, sehingga stack trace crash tidak terbaca tanpa symbols. Unduh artifact `debug-symbols` (disimpan 90 hari) dan jalankan:
@@ -118,7 +122,40 @@ flutter symbolize -i stack_trace.txt -d debug-symbols/app.android-arm64.symbols
 
 ---
 
-## 5. Konfigurasi Signing di Proyek Lokal
+## 5. Publish ke Google Play
+
+Job `publish-play` meng-upload AAB lewat Google Play Developer API (action `r0adkll/upload-google-play`).
+
+### Persiapan sekali saja
+1. **Buat aplikasi di Play Console** dengan package `id.pelatihan.belajar.sehat_kerja`.
+2. **Upload AAB pertama secara manual** lewat Play Console (misalnya ke track Internal testing). API tidak bisa membuat rilis pertama. Ambil AAB dari artifact `release-appbundle` hasil run manual. Saat itu aktifkan **Play App Signing**; keystore di secret menjadi *upload key*.
+3. **Buat service account:**
+   - Google Cloud Console > proyek yang terhubung ke Play Console > aktifkan **Google Play Android Developer API**.
+   - IAM > Service Accounts > buat akun baru > Keys > **Add key** > JSON. Simpan file JSON-nya.
+   - Play Console > **Users and permissions** > **Invite new users** > masukkan email service account > beri akses ke aplikasi ini dengan izin *Release apps to testing tracks* (tambah *Release to production* jika perlu).
+4. **Isi secret** `PLAY_SERVICE_ACCOUNT_JSON` dengan isi file JSON tadi (teks apa adanya, bukan Base64). Setelah itu hapus file JSON dari laptop.
+
+### Variables tambahan
+
+| Nama | Wajib | Isi |
+| :--- | :--- | :--- |
+| `PLAY_TRACK` | Tidak | Track tujuan saat push tag: `internal`, `alpha`, `beta`, atau `production`. Kosong atau `none` = tag tidak publish ke Play. |
+| `PLAY_RELEASE_STATUS` | Tidak | `completed` (default) atau `draft`. Pakai `draft` selama aplikasi masih berstatus draft di Play Console, karena API menolak status lain pada aplikasi draft. |
+| `VERSION_CODE_OFFSET` | Tidak | Ditambahkan ke `versionCode`. Isi jika pernah upload manual dengan `versionCode` lebih besar dari nomor run (misalnya `100`). |
+
+### Pengaman rilis produksi
+Job publish memakai environment `play-<track>` (contoh: `play-internal`, `play-production`), yang dibuat otomatis saat pertama dipakai. Buka **Settings > Environments > play-production**, tambahkan **Required reviewers**, sehingga rilis ke produksi harus disetujui dulu sebelum di-upload.
+
+### Catatan rilis (opsional)
+Buat folder `distribution/whatsnew/` berisi file per bahasa, misalnya `whatsnew-id-ID` dan `whatsnew-en-US` (maksimal 500 karakter). Jika folder ada, isinya dikirim sebagai catatan rilis di Play.
+
+### Alur yang disarankan
+1. Set `PLAY_TRACK=internal`. Setiap tag `v*` otomatis masuk Internal testing.
+2. Setelah diuji, promosikan rilis ke produksi dari Play Console, atau jalankan workflow manual dengan `play_track=production` (perlu persetujuan reviewer).
+
+---
+
+## 6. Konfigurasi Signing di Proyek Lokal
 
 `android/app/build.gradle.kts`:
 1. Membaca `android/key.properties` jika tersedia.
