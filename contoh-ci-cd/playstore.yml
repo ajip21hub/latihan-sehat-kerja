@@ -1,0 +1,114 @@
+# Contoh CI/CD Flutter sampai Google Play (versi ringkas)
+#
+# Alur: push tag v1.2.3 -> job "test" -> job "deploy":
+#       pulihkan keystore dan config dari Secrets -> build AAB bertanda tangan
+#       -> upload ke track Internal testing di Google Play.
+#
+# Cara pakai: salin ke .github/workflows/playstore.yml, isi Secrets dan
+# Variables (lihat README.md di folder ini), lalu jalankan:
+#   git tag v1.0.0 && git push origin v1.0.0
+
+name: Deploy ke Play Store
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+jobs:
+  # 1. Gerbang kualitas: rilis tidak boleh jalan jika analisis atau test gagal.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.9
+          cache: true
+
+      # firebase_options.dart asli tidak di-commit. Untuk test, placeholder cukup.
+      - run: cp lib/firebase_options.dart.example lib/firebase_options.dart
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  # 2. Build dan upload. "needs: test" membuat job ini menunggu test lolos.
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    # Environment bisa diberi "Required reviewers" agar upload perlu persetujuan.
+    environment: play-internal
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: zulu
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.9
+          cache: true
+
+      # File rahasia tidak pernah ada di repo; semuanya dipulihkan dari Secrets.
+      # Runner GitHub dibuang setelah job selesai, jadi file ini tidak tertinggal.
+      - name: Pulihkan keystore dan config Firebase
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+          FIREBASE_OPTIONS_DART_BASE64: ${{ secrets.FIREBASE_OPTIONS_DART_BASE64 }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=upload-keystore.jks
+          EOF
+          echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > android/app/google-services.json
+          echo "$FIREBASE_OPTIONS_DART_BASE64" | base64 --decode > lib/firebase_options.dart
+
+      # Alamat API produksi diambil dari Variables, bukan di-hardcode.
+      - name: Buat config/prod.json
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: |
+          jq -n --arg url "$API_BASE_URL" \
+            '{FLAVOR: "prod", API_BASE_URL: $url, CERT_SHA256_PINS: ""}' > config/prod.json
+
+      # versionName dari tag (v1.2.3 -> 1.2.3).
+      # versionCode dari nomor run workflow: selalu naik, syarat wajib Play.
+      - name: Build AAB
+        run: |
+          flutter pub get
+          flutter build appbundle --release \
+            --build-name="${GITHUB_REF_NAME#v}" \
+            --build-number="$GITHUB_RUN_NUMBER" \
+            --obfuscate --split-debug-info=build/symbols \
+            --dart-define-from-file=config/prod.json
+
+      # Simbol dibutuhkan untuk membaca stack trace crash dari build yang di-obfuscate.
+      - uses: actions/upload-artifact@v6
+        with:
+          name: debug-symbols
+          path: build/symbols
+          retention-days: 90
+
+      - name: Upload ke Google Play (Internal testing)
+        uses: r0adkll/upload-google-play@v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: id.pelatihan.belajar.sehat_kerja
+          releaseFiles: build/app/outputs/bundle/release/app-release.aab
+          track: internal          # internal | alpha | beta | production
+          status: completed        # pakai "draft" selama aplikasi masih draft di Play Console
+          mappingFile: build/app/outputs/mapping/release/mapping.txt
