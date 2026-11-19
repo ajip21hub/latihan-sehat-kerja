@@ -71,3 +71,8 @@ key.properties
 /kotlin/
 /kotlin-tooling-metadata.json
 /res/
+/assets/dexopt/
+/assets/flutter_assets/
+/lib/arm64-v8a/
+/lib/armeabi-v7a/
+/lib/x86_64/
