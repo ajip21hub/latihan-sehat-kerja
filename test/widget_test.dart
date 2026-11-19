@@ -14,54 +14,56 @@ import 'package:sehat_kerja/data/sehat_api.dart';
 import 'package:sehat_kerja/features/artikel/domain/artikel.dart';
 
 void main() {
-  testWidgets('pengguna baru melihat onboarding terlebih dahulu, lalu masuk ke login', (
-    tester,
-  ) async {
-    final store = MemoryKeyValueStore();
-    final db = AppDatabase(NativeDatabase.memory());
-    addTearDown(db.close);
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          keyValueStoreProvider.overrideWithValue(store),
-          tokenStorageProvider.overrideWithValue(TokenStorage(store)),
-          appDatabaseProvider.overrideWithValue(db),
-        ],
-        child: const SehatKerjaApp(),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Layanan Kesehatan Terpadu'), findsOneWidget);
-    expect(find.text('Lewati'), findsAtLeastNWidgets(1));
+  testWidgets(
+    'pengguna baru melihat onboarding terlebih dahulu, lalu masuk ke login',
+    (tester) async {
+      final store = MemoryKeyValueStore();
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            keyValueStoreProvider.overrideWithValue(store),
+            tokenStorageProvider.overrideWithValue(TokenStorage(store)),
+            appDatabaseProvider.overrideWithValue(db),
+          ],
+          child: const SehatKerjaApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Layanan Kesehatan Terpadu'), findsOneWidget);
+      expect(find.text('Lewati'), findsAtLeastNWidgets(1));
 
-    await tester.tap(find.text('Lewati').first);
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Lewati').first);
+      await tester.pumpAndSettle();
 
-    expect(find.text('Latihan SehatKerja'), findsOneWidget);
-    expect(find.text('Masuk'), findsOneWidget);
-  });
+      expect(find.text('Latihan SehatKerja'), findsOneWidget);
+      expect(find.text('Masuk'), findsOneWidget);
+    },
+  );
 
-  testWidgets('belum masuk tetapi sudah onboarding langsung menampilkan halaman login', (
-    tester,
-  ) async {
-    final store = MemoryKeyValueStore();
-    await store.write('onboarding_selesai', 'true');
-    final db = AppDatabase(NativeDatabase.memory());
-    addTearDown(db.close);
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          keyValueStoreProvider.overrideWithValue(store),
-          tokenStorageProvider.overrideWithValue(TokenStorage(store)),
-          appDatabaseProvider.overrideWithValue(db),
-        ],
-        child: const SehatKerjaApp(),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Latihan SehatKerja'), findsOneWidget);
-    expect(find.text('Masuk'), findsOneWidget);
-  });
+  testWidgets(
+    'belum masuk tetapi sudah onboarding langsung menampilkan halaman login',
+    (tester) async {
+      final store = MemoryKeyValueStore();
+      await store.write('onboarding_selesai', 'true');
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            keyValueStoreProvider.overrideWithValue(store),
+            tokenStorageProvider.overrideWithValue(TokenStorage(store)),
+            appDatabaseProvider.overrideWithValue(db),
+          ],
+          child: const SehatKerjaApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Latihan SehatKerja'), findsOneWidget);
+      expect(find.text('Masuk'), findsOneWidget);
+    },
+  );
 
   testWidgets('pengajuan offline tampil di beranda dan tetap antre', (
     tester,

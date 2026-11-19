@@ -158,7 +158,9 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                       child: FilledButton(
                         onPressed: _selesai,
                         child: Text(
-                          widget.isViewOnly ? 'Tutup Panduan' : 'Mulai Sekarang',
+                          widget.isViewOnly
+                              ? 'Tutup Panduan'
+                              : 'Mulai Sekarang',
                         ),
                       ),
                     )

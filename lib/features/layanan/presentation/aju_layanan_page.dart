@@ -35,7 +35,9 @@ class _AjuLayananPageState extends ConsumerState<AjuLayananPage> {
     final keluhan = _keluhan.text.trim();
     if (faskes.isNotEmpty && keluhan.length >= 5) {
       _formFilledTracked = true;
-      ref.read(analyticsServiceProvider).logFormLayananTerisi(
+      ref
+          .read(analyticsServiceProvider)
+          .logFormLayananTerisi(
             jenisLayanan: _jenis.name,
             faskesLength: faskes.length,
             keluhanLength: keluhan.length,
@@ -105,10 +107,9 @@ class _AjuLayananPageState extends ConsumerState<AjuLayananPage> {
         _faskes.text.trim().isNotEmpty && _keluhan.text.trim().length >= 5;
 
     // 3. Tracking klik tombol kirim pengajuan
-    ref.read(analyticsServiceProvider).logKlikKirimPengajuan(
-          jenisLayanan: _jenis.name,
-          isValid: isValid,
-        );
+    ref
+        .read(analyticsServiceProvider)
+        .logKlikKirimPengajuan(jenisLayanan: _jenis.name, isValid: isValid);
 
     if (!isValid) {
       setState(() => _error = 'Isi faskes dan keluhan, minimal 5 huruf.');
@@ -123,9 +124,9 @@ class _AjuLayananPageState extends ConsumerState<AjuLayananPage> {
         .ajukan(jenis: _jenis, faskes: _faskes.text, keluhan: _keluhan.text);
     if (!mounted) return;
     if (error == null) {
-      ref.read(analyticsServiceProvider).logKirimPengajuanSukses(
-            jenisLayanan: _jenis.name,
-          );
+      ref
+          .read(analyticsServiceProvider)
+          .logKirimPengajuanSukses(jenisLayanan: _jenis.name);
       context.pop();
       return;
     }
