@@ -14,7 +14,7 @@ Dokumen ini menjelaskan alur kerja (*pipeline*) Continuous Integration (CI) dan 
 
 | Workflow File | Trigger | Tugas Utama |
 | :--- | :--- | :--- |
-| **`ci.yml`** | Push dan PR ke `main`, `master`, `develop`; juga dipanggil oleh `cd-android.yml` | **Job test:** format (`dart format`), analisis (`flutter analyze`), backend self-check, validasi codegen drift (`build_runner` + `git diff`), test (`flutter test --coverage`).<br>**Job security:** secret scan (gitleaks), audit dependensi (OSV, `pubspec.lock`), larangan file rahasia ter-commit, cek manifest release HTTPS-only dan tidak `debuggable`. |
+| **`ci.yml`** | Push dan PR ke `main`, `master`, `develop`; juga dipanggil oleh `cd-android.yml` | Tiga job berjalan paralel:<br>**test:** `pub get --enforce-lockfile` (lockfile wajib cocok dengan `pubspec.yaml`), format (`dart format`), analisis ketat (`flutter analyze --fatal-infos --fatal-warnings`), backend self-check, validasi codegen drift (`build_runner` + `git diff`), test dengan coverage minimum `MIN_COVERAGE` (default 50%, tanpa file generated; angka tampil di ringkasan run).<br>**build-android:** build APK debug dengan config Firebase placeholder untuk memastikan proyek Android masih bisa di-compile. APK di-upload sebagai artifact `debug-apk` (7 hari) agar reviewer bisa mencoba. Job ini dilewati saat dipanggil dari `cd-android.yml`.<br>**security:** secret scan (gitleaks), audit dependensi (OSV, `pubspec.lock`), larangan file rahasia ter-commit, cek manifest release HTTPS-only dan tidak `debuggable`. |
 | **`cd-android.yml`** | Tag `v*` (contoh: `v1.0.0`) atau manual (*workflow_dispatch*) | Menjalankan `ci.yml` sebagai gerbang, lalu: injeksi Firebase config dan keystore, generate `config/prod.json` (wajib HTTPS), build APK (`--split-per-abi`) dan AAB dengan `--obfuscate`, verifikasi tanda tangan (APK dan AAB tidak boleh debug key), upload artifact dan debug symbols, publikasi ke GitHub Release (khusus tag). |
 
 ---
@@ -82,13 +82,17 @@ Buat branch baru, commit, lalu buka **Pull Request** ke `master`. CI berjalan ot
 
 Verifikasi lokal sebelum push (urutan sama dengan CI):
 ```bash
+flutter pub get --enforce-lockfile
 dart format --output=none --set-exit-if-changed lib test backend
-flutter analyze
+flutter analyze --fatal-infos --fatal-warnings
 dart run backend/server.dart --self-check
 dart run build_runner build --delete-conflicting-outputs
 git diff --exit-code lib/   # hasil codegen harus sudah ter-commit
-flutter test
+flutter test --coverage
+flutter build apk --debug --dart-define-from-file=config/android.json
 ```
+
+Batas coverage diatur lewat `MIN_COVERAGE` di bagian `env` pada `ci.yml`. Naikkan bertahap seiring bertambahnya test; jangan turunkan untuk meloloskan PR.
 
 ### B. CD (rilis versi baru)
 

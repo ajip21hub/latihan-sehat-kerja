@@ -23,6 +23,8 @@ jobs:
   ci:
     name: CI Gate (lint, test, security)
     uses: ./.github/workflows/ci.yml
+    with:
+      skip_debug_build: true  # job ini sudah build release sendiri
 
   build-android:
     name: Build Android Release
@@ -33,10 +35,10 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'zulu'
           java-version: '17'
@@ -136,21 +138,21 @@ jobs:
         run: rm -f android/app/upload-keystore.jks android/key.properties android/app/google-services.json lib/firebase_options.dart
 
       - name: Upload Debug Symbols (private artifact, untuk deobfuscate crash)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: debug-symbols
           path: build/symbols
           retention-days: 90
 
       - name: Upload APKs to Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: ${{ github.event_name == 'push' || inputs.build_type == 'apk' || inputs.build_type == 'both' }}
         with:
           name: release-apks
           path: build/app/outputs/flutter-apk/*.apk
 
       - name: Upload App Bundle to Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: ${{ github.event_name == 'push' || inputs.build_type == 'appbundle' || inputs.build_type == 'both' }}
         with:
           name: release-appbundle

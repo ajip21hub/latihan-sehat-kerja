@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "YOUR_APP_ID",
         "android_client_info": {
-          "package_name": "id.pelatihan.belajar.sehatKerja"
+          "package_name": "id.pelatihan.belajar.sehat_kerja"
         }
       },
       "api_key": [
