@@ -12,6 +12,13 @@
 //   POST /v1/outbox       kirim baris yang synced=false
 //   GET  /v1/stream       WebSocket, status pengajuan berubah sendiri
 //
+// Role = siapa yang membayar iuran, dikirim di `peserta.kepesertaan`:
+//   perusahaan (role A)  iuran dipotong gaji + porsi pemberi kerja
+//   mandiri    (role B)  iuran dibayar sendiri
+// Role bertambah, tidak saling mengganti. 0003 dulu perusahaan, berhenti,
+// lalu daftar mandiri: memegang dua role. Snapshot hanya berisi bagian yang
+// sesuai role, dan outbox menolak aksi di luar role dengan `peran_ditolak`.
+//
 // Dana mengirim expectedSaldoTotal. Kalau saldo di server sudah lain,
 // balasan 409 saldo_berubah. Klien TIDAK boleh menandai baris itu synced.
 // clientId yang sama dikirim ulang mengembalikan hasil lama (idempoten).
@@ -47,11 +54,11 @@ const _artikel = [
   {
     'id': 'ambil-sebagian',
     'judul': 'Pengambilan 10% butuh 10 tahun',
-    'ringkas':
-        'Akun 0001 boleh mengajukan. Akun 0002 ditolak karena baru 4 tahun.',
+    'ringkas': 'Akun 0001 masih bekerja: boleh 10%. Akun 0003 sudah berhenti: ambil seluruhnya.',
     'isi':
-        'Pengambilan sebagian 10% untuk peserta yang masih aktif, di latihan ini, '
-        'mensyaratkan kepesertaan minimal 10 tahun. Jalur 30% untuk rumah tidak dibuat. '
+        'Pengambilan sebagian 10% untuk peserta yang masih bekerja, di latihan ini, '
+        'mensyaratkan kepesertaan minimal 10 tahun. Seluruh saldo hanya setelah '
+        'berhenti bekerja. Jalur 30% untuk rumah tidak dibuat. '
         'Perkiraan 1 hari kerja di bawah Rp10 juta dan 5 hari di atasnya hanya label belajar.',
     'diperbarui': 1763000002000,
   },
@@ -78,7 +85,10 @@ Future<void> main(List<String> args) async {
   });
   if (!check) {
     stdout.writeln('SehatKerja backend: http://localhost:${server.port}');
-    stdout.writeln('Akun: 0001 atau 0002 / belajar');
+    stdout.writeln(
+      'Akun (sandi belajar): 0001 perusahaan, 0002 mandiri, '
+      '0003 perusahaan berhenti + mandiri',
+    );
     stdout.writeln('WebSocket: ws://localhost:${server.port}/v1/stream');
   }
 
@@ -264,8 +274,11 @@ class Store {
   Store() {
     _saldo.addAll({
       '0001': _Saldo(4500000, 6500000, 1500000),
-      '0002': _Saldo(1200000, 1600000, 400000),
+      '0003': _Saldo(6000000, 9000000, 3000000),
     });
+    for (final entry in _peserta.entries) {
+      _kelas[entry.key] = entry.value.kelas;
+    }
     _layanan['0001'] = [
       _Layanan(
         id: 'L-1',
@@ -278,6 +291,32 @@ class Store {
         status: 'disetujui',
       ),
     ];
+    _iuranPerusahaan['0001'] = _iuranBulanan(
+      'PT Maju Jaya',
+      dari: (2026, 5),
+      sampai: (2026, 10),
+      pekerja: 120000,
+      pemberiKerja: 222000,
+    );
+    _iuranPerusahaan['0003'] = _iuranBulanan(
+      'PT Sinar Abadi',
+      dari: (2026, 1),
+      sampai: (2026, 6),
+      pekerja: 140000,
+      pemberiKerja: 259000,
+    );
+    _tagihan['0002'] = [
+      _Tagihan('T-0002-2026-09', '2026-09', 'tiga', '2026-09-08T03:00:00.000Z'),
+      _Tagihan('T-0002-2026-10', '2026-10', 'tiga', '2026-10-09T03:00:00.000Z'),
+      _Tagihan('T-0002-2026-11', '2026-11', 'tiga', null),
+    ];
+    _tagihan['0003'] = [
+      _Tagihan('T-0003-2026-07', '2026-07', 'dua', '2026-07-05T03:00:00.000Z'),
+      _Tagihan('T-0003-2026-08', '2026-08', 'dua', '2026-08-06T03:00:00.000Z'),
+      _Tagihan('T-0003-2026-09', '2026-09', 'dua', '2026-09-04T03:00:00.000Z'),
+      _Tagihan('T-0003-2026-10', '2026-10', 'dua', '2026-10-07T03:00:00.000Z'),
+      _Tagihan('T-0003-2026-11', '2026-11', 'dua', null),
+    ];
   }
 
   static const _peserta = {
@@ -286,26 +325,61 @@ class Store {
       nama: 'Sari Wulandari',
       nik: '3275011201900001',
       kelas: 'dua',
-      kelasLabel: 'Kelas 2',
       faskes: 'Klinik Melati',
       tahun: 11,
+      kepesertaan: [
+        {
+          'jenis': 'perusahaan',
+          'status': 'aktif',
+          'pemberiKerja': 'PT Maju Jaya',
+          'mulai': '2015-03-01',
+        },
+      ],
     ),
     '0002': (
       sandi: 'belajar',
       nama: 'Budi Santoso',
       nik: '3275010801950002',
       kelas: 'tiga',
-      kelasLabel: 'Kelas 3',
       faskes: 'Puskesmas Dahlia',
       tahun: 4,
+      kepesertaan: [
+        {'jenis': 'mandiri', 'status': 'aktif', 'mulai': '2022-09-01'},
+      ],
+    ),
+    '0003': (
+      sandi: 'belajar',
+      nama: 'Dewi Lestari',
+      nik: '3275014405880003',
+      kelas: 'dua',
+      faskes: 'Klinik Kenanga',
+      tahun: 13,
+      kepesertaan: [
+        {
+          'jenis': 'perusahaan',
+          'status': 'berhenti',
+          'pemberiKerja': 'PT Sinar Abadi',
+          'mulai': '2013-02-01',
+          'selesai': '2026-06-30',
+        },
+        {'jenis': 'mandiri', 'status': 'aktif', 'mulai': '2026-07-01'},
+      ],
     ),
   };
+
+  static const _tarifMandiri = {'satu': 150000, 'dua': 100000, 'tiga': 35000};
 
   final _access = <String, ({String nomor, DateTime exp})>{};
   final _refresh = <String, String>{};
   final _saldo = <String, _Saldo>{};
   final _layanan = <String, List<_Layanan>>{};
   final _dana = <String, List<_Dana>>{};
+  final _kelas = <String, String>{};
+  final _iuranPerusahaan = <String, List<Map<String, dynamic>>>{};
+  final _tagihan = <String, List<_Tagihan>>{};
+
+  /// Hasil op yang tidak punya baris sendiri (bayar, ubah kelas), per clientId.
+  final _opSelesai = <String, Map<String, Map<String, dynamic>>>{};
   final _sockets = <WebSocket, String>{};
   final _random = Random();
 
@@ -351,13 +425,26 @@ class Store {
     return rec.nomor;
   }
 
+  /// Hanya bagian yang sesuai role yang dikirim.
   Map<String, dynamic> snapshot(String nomor) => {
     'serverTime': DateTime.now().toUtc().toIso8601String(),
     'peserta': _profil(nomor),
-    'saldo': _saldo[nomor]!.json,
     'layanan': [for (final item in _layanan[nomor] ?? const []) item.json],
-    'dana': [for (final item in _dana[nomor] ?? const []) item.json],
+    if (_punya(nomor, 'perusahaan')) ...{
+      'saldo': (_saldo[nomor] ?? _Saldo(0, 0, 0)).json,
+      'dana': [for (final item in _dana[nomor] ?? const []) item.json],
+      'iuranPerusahaan': _iuranPerusahaan[nomor] ?? const [],
+    },
+    if (_punya(nomor, 'mandiri'))
+      'tagihan': [for (final t in _tagihan[nomor] ?? const []) t.json],
   };
+
+  bool _punya(String nomor, String jenis, {bool harusAktif = false}) {
+    final segmen = _peserta[nomor]?.kepesertaan ?? const [];
+    return segmen.any(
+      (k) => k['jenis'] == jenis && (!harusAktif || k['status'] == 'aktif'),
+    );
+  }
 
   void ikut(String nomor, WebSocket socket) {
     _sockets[socket] = nomor;
@@ -381,9 +468,24 @@ class Store {
         'item': sudah,
       };
     }
+    // Menyembunyikan menu di aplikasi hanya tampilan. Di sini aturannya.
+    final syarat = switch (op['op']) {
+      'dana' => _punya(nomor, 'perusahaan'),
+      'bayarIuran' || 'ubahKelas' => _punya(nomor, 'mandiri', harusAktif: true),
+      _ => true,
+    };
+    if (!syarat) {
+      return _tolak(
+        clientId,
+        'peran_ditolak',
+        'Jenis kepesertaanmu tidak punya akses ke aksi ini.',
+      );
+    }
     return switch (op['op']) {
       'layanan' => _layananBaru(nomor, clientId, op),
       'dana' => _danaBaru(nomor, clientId, op),
+      'bayarIuran' => _simpanOp(nomor, clientId, _bayarIuran(nomor, op)),
+      'ubahKelas' => _simpanOp(nomor, clientId, _ubahKelas(nomor, op)),
       _ => {
         'clientId': clientId,
         'ok': false,
@@ -489,22 +591,34 @@ class Store {
       return _tolak(clientId, 'ditolak', 'Saldo kosong.');
     }
 
-    final nominal = switch (jenis) {
-      'seluruhnya' => saldo.total,
-      'sebagian10' when orang.tahun >= 10 => (saldo.total * 10) ~/ 100,
-      'sebagian10' => -1,
-      _ => -2,
-    };
-    if (nominal == -2) {
+    final bekerja = _punya(nomor, 'perusahaan', harusAktif: true);
+    if (jenis != 'seluruhnya' && jenis != 'sebagian10') {
       return _tolak(clientId, 'jenis', 'Jenis pengambilan tidak dikenal.');
     }
-    if (nominal < 0) {
+    if (jenis == 'seluruhnya' && bekerja) {
+      return _tolak(
+        clientId,
+        'ditolak',
+        'Seluruh saldo hanya bisa diambil setelah berhenti bekerja.',
+      );
+    }
+    if (jenis == 'sebagian10' && !bekerja) {
+      return _tolak(
+        clientId,
+        'ditolak',
+        'Jalur 10% untuk peserta yang masih bekerja.',
+      );
+    }
+    if (jenis == 'sebagian10' && orang.tahun < 10) {
       return _tolak(
         clientId,
         'ditolak',
         'Pengambilan 10% hanya untuk kepesertaan minimal 10 tahun.',
       );
     }
+    final nominal = jenis == 'seluruhnya'
+        ? saldo.total
+        : (saldo.total * 10) ~/ 100;
     final dikirim = op['nominal'];
     if (dikirim is! num || dikirim.toInt() != nominal) {
       return {
@@ -545,7 +659,76 @@ class Store {
     for (final item in _dana[nomor] ?? const <_Item>[]) {
       if (item.clientId == clientId) return item.json;
     }
-    return null;
+    return _opSelesai[nomor]?[clientId];
+  }
+
+  /// Hasil sukses disimpan supaya clientId yang sama tidak diproses dua kali.
+  Map<String, dynamic> _simpanOp(
+    String nomor,
+    String clientId,
+    Map<String, dynamic> hasil,
+  ) {
+    if (hasil['ok'] != true) return {'clientId': clientId, ...hasil};
+    final item = hasil['item'] as Map<String, dynamic>;
+    _opSelesai.putIfAbsent(nomor, () => {})[clientId] = item;
+    return {'clientId': clientId, 'alreadyApplied': false, ...hasil};
+  }
+
+  Map<String, dynamic> _bayarIuran(String nomor, Map<String, dynamic> op) {
+    final id = '${op['tagihanId'] ?? ''}';
+    final tagihan = (_tagihan[nomor] ?? const <_Tagihan>[])
+        .where((t) => t.id == id)
+        .firstOrNull;
+    if (tagihan == null) {
+      return {'ok': false, 'code': 'ditolak', 'message': 'Tagihan tidak ada.'};
+    }
+    if (tagihan.dibayar != null) {
+      return {
+        'ok': false,
+        'code': 'ditolak',
+        'message': 'Tagihan ${tagihan.periode} sudah lunas.',
+      };
+    }
+    final nominal = op['nominal'];
+    final harus = _tarifMandiri[tagihan.kelas]!;
+    if (nominal is! num || nominal.toInt() != harus) {
+      return {
+        'ok': false,
+        'code': 'ditolak',
+        'message': 'Nominal harus ${tagihan.nominal}.',
+      };
+    }
+    tagihan.dibayar = DateTime.now().toUtc().toIso8601String();
+    return {'ok': true, 'item': tagihan.json};
+  }
+
+  Map<String, dynamic> _ubahKelas(String nomor, Map<String, dynamic> op) {
+    final kelas = '${op['kelas'] ?? ''}';
+    if (!_tarifMandiri.containsKey(kelas)) {
+      return {'ok': false, 'code': 'jenis', 'message': 'Kelas tidak dikenal.'};
+    }
+    if (_kelas[nomor] == kelas) {
+      return {
+        'ok': false,
+        'code': 'ditolak',
+        'message': 'Kelas tujuan sama dengan kelas sekarang.',
+      };
+    }
+    final menunggak = (_tagihan[nomor] ?? const <_Tagihan>[]).any(
+      (t) => t.dibayar == null,
+    );
+    if (menunggak) {
+      return {
+        'ok': false,
+        'code': 'ditolak',
+        'message': 'Lunasi tagihan iuran dulu.',
+      };
+    }
+    _kelas[nomor] = kelas;
+    return {
+      'ok': true,
+      'item': {'kelas': kelas},
+    };
   }
 
   Map<String, dynamic> _tolak(String clientId, String code, String message) => {
@@ -561,11 +744,11 @@ class Store {
       'nomor': nomor,
       'nama': orang.nama,
       'nik': orang.nik,
-      'kelas': orang.kelas,
-      'kelasLabel': orang.kelasLabel,
+      'kelas': _kelas[nomor] ?? orang.kelas,
       'faskes': orang.faskes,
       'tahunKepesertaan': orang.tahun,
       'aktif': true,
+      'kepesertaan': orang.kepesertaan,
     };
   }
 
@@ -611,6 +794,51 @@ class _Saldo {
     'pengembangan': pengembangan,
     'total': total,
   };
+}
+
+class _Tagihan {
+  _Tagihan(this.id, this.periode, this.kelas, this.dibayar);
+
+  final String id;
+  final String periode;
+  final String kelas;
+  String? dibayar;
+
+  int get nominal => Store._tarifMandiri[kelas]!;
+
+  Map<String, dynamic> get json => {
+    'id': id,
+    'periode': periode,
+    'kelas': kelas,
+    'nominal': nominal,
+    'status': dibayar == null ? 'belumBayar' : 'lunas',
+    'dibayar': ?dibayar,
+  };
+}
+
+List<Map<String, dynamic>> _iuranBulanan(
+  String perusahaan, {
+  required (int, int) dari,
+  required (int, int) sampai,
+  required int pekerja,
+  required int pemberiKerja,
+}) {
+  final hasil = <Map<String, dynamic>>[];
+  var (tahun, bulan) = sampai;
+  while (tahun > dari.$1 || (tahun == dari.$1 && bulan >= dari.$2)) {
+    hasil.add({
+      'periode': '$tahun-${bulan.toString().padLeft(2, '0')}',
+      'pemberiKerja': perusahaan,
+      'potonganPekerja': pekerja,
+      'porsiPemberiKerja': pemberiKerja,
+    });
+    bulan--;
+    if (bulan == 0) {
+      bulan = 12;
+      tahun--;
+    }
+  }
+  return hasil;
 }
 
 abstract class _Item {
@@ -805,27 +1033,120 @@ Future<int> _selfCheck(int port, Store store) async {
       '409 tidak mengubah saldo',
     );
 
+    Future<dynamic> op(String token, Map<String, dynamic> body) async {
+      final res = await _call(client, 'POST', '$base/v1/outbox', {
+        'ops': [body],
+      }, token);
+      return res.json['results'][0];
+    }
+
+    // 0001: role A aktif. Masih bekerja, jadi seluruh saldo ditolak.
+    _expect(
+      (awal.json['peserta']['kepesertaan'] as List).length == 1,
+      '0001 satu role',
+    );
+    _expect(!awal.json.containsKey('tagihan'), '0001 tidak menerima tagihan');
+    final seluruh1 = await op(token, {
+      'op': 'dana',
+      'clientId': 'dana-seluruh-1',
+      'jenis': 'seluruhnya',
+      'alasan': 'Masih bekerja tapi coba',
+      'nominal': 11250000,
+      'expectedSaldoTotal': 11250000,
+    });
+    _expect(seluruh1['code'] == 'ditolak', '0001 masih bekerja');
+    final bayar1 = await op(token, {
+      'op': 'bayarIuran',
+      'clientId': 'bayar-1',
+      'tagihanId': 'T-0002-2026-11',
+      'nominal': 35000,
+    });
+    _expect(bayar1['code'] == 'peran_ditolak', '0001 bukan mandiri');
+
+    // 0002: role B. Tidak ada saldo JHT, ada tagihan.
     final login2 = await _call(client, 'POST', '$base/auth/login', {
       'nomor': '0002',
       'sandi': 'belajar',
     });
     final token2 = login2.json['accessToken'] as String;
-    final ditolak = await _call(client, 'POST', '$base/v1/outbox', {
-      'ops': [
-        {
-          'op': 'dana',
-          'clientId': 'dana-2',
-          'jenis': 'sebagian10',
-          'alasan': 'Belum sepuluh tahun',
-          'nominal': 320000,
-          'expectedSaldoTotal': 3200000,
-        },
-      ],
-    }, token2);
-    _expect(
-      ditolak.json['results'][0]['code'] == 'ditolak',
-      '0002 belum 10 tahun',
+    final snap2 = await _call(client, 'GET', '$base/v1/snapshot', null, token2);
+    _expect(!snap2.json.containsKey('saldo'), '0002 tidak menerima saldo');
+    _expect((snap2.json['tagihan'] as List).length == 3, '0002 tiga tagihan');
+    final dana2 = await op(token2, {
+      'op': 'dana',
+      'clientId': 'dana-2',
+      'jenis': 'sebagian10',
+      'alasan': 'Bukan role perusahaan',
+      'nominal': 0,
+      'expectedSaldoTotal': 0,
+    });
+    _expect(dana2['code'] == 'peran_ditolak', '0002 bukan perusahaan');
+    final kelasDini = await op(token2, {
+      'op': 'ubahKelas',
+      'clientId': 'kelas-dini',
+      'kelas': 'dua',
+    });
+    _expect(kelasDini['code'] == 'ditolak', 'ubah kelas saat menunggak');
+    final bayar2 = await op(token2, {
+      'op': 'bayarIuran',
+      'clientId': 'bayar-2',
+      'tagihanId': 'T-0002-2026-11',
+      'nominal': 35000,
+    });
+    _expect(bayar2['ok'] == true, '0002 bayar tagihan');
+    final bayarUlang = await op(token2, {
+      'op': 'bayarIuran',
+      'clientId': 'bayar-2',
+      'tagihanId': 'T-0002-2026-11',
+      'nominal': 35000,
+    });
+    _expect(bayarUlang['alreadyApplied'] == true, 'bayar idempoten');
+    final kelas2 = await op(token2, {
+      'op': 'ubahKelas',
+      'clientId': 'kelas-2',
+      'kelas': 'dua',
+    });
+    _expect(kelas2['ok'] == true, '0002 ubah kelas setelah lunas');
+    final snap2b = await _call(
+      client,
+      'GET',
+      '$base/v1/snapshot',
+      null,
+      token2,
     );
+    _expect(snap2b.json['peserta']['kelas'] == 'dua', 'kelas baru tersimpan');
+
+    // 0003: role A berhenti + role B aktif. Dua-duanya terkirim.
+    final login3 = await _call(client, 'POST', '$base/auth/login', {
+      'nomor': '0003',
+      'sandi': 'belajar',
+    });
+    final token3 = login3.json['accessToken'] as String;
+    final snap3 = await _call(client, 'GET', '$base/v1/snapshot', null, token3);
+    _expect(
+      (snap3.json['peserta']['kepesertaan'] as List).length == 2,
+      '0003 dua role',
+    );
+    _expect(snap3.json['saldo']['total'] == 18000000, '0003 saldo 18 juta');
+    _expect(snap3.json['tagihan'] is List, '0003 menerima tagihan');
+    final sebagian3 = await op(token3, {
+      'op': 'dana',
+      'clientId': 'dana-3a',
+      'jenis': 'sebagian10',
+      'alasan': 'Sudah berhenti bekerja',
+      'nominal': 1800000,
+      'expectedSaldoTotal': 18000000,
+    });
+    _expect(sebagian3['code'] == 'ditolak', '0003 tidak lewat jalur 10%');
+    final seluruh3 = await op(token3, {
+      'op': 'dana',
+      'clientId': 'dana-3b',
+      'jenis': 'seluruhnya',
+      'alasan': 'Sudah berhenti bekerja',
+      'nominal': 18000000,
+      'expectedSaldoTotal': 18000000,
+    });
+    _expect(seluruh3['ok'] == true, '0003 ambil seluruh saldo');
 
     final cepat = await _call(client, 'POST', '$base/auth/login', {
       'nomor': '0001',

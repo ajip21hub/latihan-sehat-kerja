@@ -26,6 +26,7 @@ class AjukanPencairan {
     required String nomorPeserta,
     required SaldoJht saldo,
     required int tahunKepesertaan,
+    required bool masihBekerja,
     required JenisAmbil jenis,
     required String alasan,
     required bool adaYangMasihBerjalan,
@@ -42,19 +43,29 @@ class AjukanPencairan {
       return const AjuanDitolak('Saldo kosong.');
     }
 
-    final nominal = switch (jenis) {
-      JenisAmbil.seluruhnya => saldo.total,
-      JenisAmbil.sebagian10 => () {
-        if (tahunKepesertaan < 10) return -1;
-        return (saldo.total * 10) ~/ 100;
-      }(),
-    };
-    if (nominal < 0) {
+    // Status role A (perusahaan) ikut menentukan jalur yang boleh dipakai.
+    if (jenis == JenisAmbil.seluruhnya && masihBekerja) {
       return const AjuanDitolak(
-        'Pengambilan 10% hanya untuk kepesertaan minimal 10 tahun. '
-        'Di aturan resmi, ini untuk peserta yang masih aktif.',
+        'Seluruh saldo hanya bisa diambil setelah berhenti bekerja. '
+        'Selama masih bekerja, pakai jalur 10%.',
       );
     }
+    if (jenis == JenisAmbil.sebagian10 && !masihBekerja) {
+      return const AjuanDitolak(
+        'Jalur 10% untuk peserta yang masih bekerja. '
+        'Kamu sudah berhenti, ajukan seluruh saldo.',
+      );
+    }
+    if (jenis == JenisAmbil.sebagian10 && tahunKepesertaan < 10) {
+      return const AjuanDitolak(
+        'Pengambilan 10% hanya untuk kepesertaan minimal 10 tahun.',
+      );
+    }
+
+    final nominal = switch (jenis) {
+      JenisAmbil.seluruhnya => saldo.total,
+      JenisAmbil.sebagian10 => (saldo.total * 10) ~/ 100,
+    };
     if (nominal == 0) return const AjuanDitolak('Nominal terlalu kecil.');
 
     final id = (sekarang ?? DateTime.now()).millisecondsSinceEpoch.toString();

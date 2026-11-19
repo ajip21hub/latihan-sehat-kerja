@@ -12,6 +12,10 @@ import 'package:sehat_kerja/core/sync/status_socket.dart';
 import 'package:sehat_kerja/data/app_snapshot.dart';
 import 'package:sehat_kerja/data/sehat_api.dart';
 import 'package:sehat_kerja/features/artikel/domain/artikel.dart';
+import 'package:sehat_kerja/features/peserta/domain/kepesertaan.dart';
+import 'package:sehat_kerja/features/peserta/domain/menu_utama.dart';
+
+import 'akun_contoh.dart';
 
 void main() {
   testWidgets(
@@ -112,6 +116,63 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
     await db.close();
   });
+
+  testWidgets('0001 (perusahaan) melihat menu role A saja', (tester) async {
+    final menu = await _menuBeranda(tester, snapshot0001());
+    expect(menu, menuUntuk(const {JenisKepesertaan.perusahaan}).toSet());
+    expect(menu, isNot(contains(MenuUtama.bayar)));
+  });
+
+  testWidgets('0002 (mandiri) melihat menu role B saja', (tester) async {
+    final menu = await _menuBeranda(tester, snapshot0002());
+    expect(menu, menuUntuk(const {JenisKepesertaan.mandiri}).toSet());
+    expect(menu, isNot(contains(MenuUtama.saldoJht)));
+  });
+
+  testWidgets('0003 (perusahaan berhenti + mandiri) melihat semua menu', (
+    tester,
+  ) async {
+    final menu = await _menuBeranda(tester, snapshot0003());
+    expect(menu, MenuUtama.values.toSet());
+  });
+}
+
+/// Login dari cache (server mati), lalu baca menu yang tampil di Beranda.
+Future<Set<MenuUtama>> _menuBeranda(
+  WidgetTester tester,
+  Map<String, dynamic> snapshot,
+) async {
+  await tester.binding.setSurfaceSize(const Size(800, 3000));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+  final store = MemoryKeyValueStore();
+  await store.write('onboarding_selesai', 'true');
+  final storage = TokenStorage(store);
+  await storage.save(access: 'akses', refresh: 'segar');
+  await storage.saveSnapshot(
+    jsonEncode(AppSnapshot.fromJson(snapshot).toJson()),
+  );
+  final db = AppDatabase(NativeDatabase.memory());
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        keyValueStoreProvider.overrideWithValue(store),
+        tokenStorageProvider.overrideWithValue(storage),
+        appDatabaseProvider.overrideWithValue(db),
+        klienSehatProvider.overrideWithValue(_Putus()),
+        statusSocketProvider.overrideWith((ref) {}),
+      ],
+      child: const SehatKerjaApp(),
+    ),
+  );
+  await tester.pumpAndSettle();
+  final tampil = {
+    for (final m in MenuUtama.values)
+      if (find.byKey(ValueKey('menu-${m.name}')).evaluate().isNotEmpty) m,
+  };
+  await tester.pumpWidget(const SizedBox());
+  await tester.pump(const Duration(milliseconds: 1));
+  await db.close();
+  return tampil;
 }
 
 AppSnapshot _snap() {

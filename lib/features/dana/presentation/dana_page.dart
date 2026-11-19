@@ -21,7 +21,10 @@ class DanaPage extends ConsumerWidget {
       body: SehatScroll(
         children: [
           const PitaAntrean(),
-          Catatan('Kepesertaan ${peserta.tahunKepesertaan} tahun'),
+          Catatan(
+            'Kepesertaan ${peserta.tahunKepesertaan} tahun · '
+            '${peserta.masihBekerja ? 'masih bekerja' : 'sudah berhenti bekerja'}',
+          ),
           const SizedBox(height: 8),
           Uang(rupiah(dana.saldo.total)),
           const SizedBox(height: 12),

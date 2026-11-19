@@ -11,7 +11,10 @@ import 'package:sehat_kerja/data/app_snapshot.dart';
 import 'package:sehat_kerja/data/sehat_api.dart';
 import 'package:sehat_kerja/data/sehat_repository.dart';
 import 'package:sehat_kerja/features/artikel/domain/artikel.dart';
+import 'package:sehat_kerja/features/iuran/domain/iuran.dart';
 import 'package:sehat_kerja/features/layanan/domain/pengajuan_layanan.dart';
+
+import 'akun_contoh.dart';
 
 void main() {
   test(
@@ -107,6 +110,65 @@ void main() {
     expect(antre.single.synced, isFalse);
     expect(repo.terakhir?.layanan.single.id, 'lokal-1');
     expect(repo.terakhir?.layanan.single.status, StatusPengajuan.diajukan);
+    container.dispose();
+    await db.close();
+  });
+
+  test('bayar iuran offline menandai tagihan menunggu kirim', () async {
+    final storage = TokenStorage(MemoryKeyValueStore());
+    await storage.save(access: 'akses', refresh: 'segar');
+    await storage.saveSnapshot(
+      jsonEncode(AppSnapshot.fromJson(snapshot0002()).toJson()),
+    );
+    final db = _memori();
+    final container = _wadah(
+      storage,
+      db,
+      _Palsu()
+        ..snapshotError = const NetworkFailure()
+        ..outboxError = const NetworkFailure(),
+    );
+    final repo = container.read(sehatRepositoryProvider);
+    await repo.pulihkan();
+
+    await repo.kirimBayarIuran(
+      clientId: 'bayar-1',
+      tagihanId: 'T-2026-11',
+      nominal: 100000,
+    );
+
+    expect(await db.belumTerkirim(), hasLength(1));
+    final tagihan = repo.terakhir!.tagihan.firstWhere(
+      (t) => t.id == 'T-2026-11',
+    );
+    expect(tagihan.status, StatusTagihan.menunggu);
+    container.dispose();
+    await db.close();
+  });
+
+  test('peran_ditolak dibatalkan, tidak diulang', () async {
+    final storage = TokenStorage(MemoryKeyValueStore());
+    await storage.save(access: 'akses', refresh: 'segar');
+    final db = _memori();
+    final palsu = _Palsu()
+      ..outboxHasil = const HasilOutbox(
+        ok: false,
+        code: 'peran_ditolak',
+        message: 'Jenis kepesertaanmu tidak punya akses ke aksi ini.',
+      );
+    final container = _wadah(storage, db, palsu);
+    final repo = container.read(sehatRepositoryProvider);
+    await repo.pulihkan();
+
+    await expectLater(
+      repo.kirimBayarIuran(
+        clientId: 'bayar-2',
+        tagihanId: 'T-2026-11',
+        nominal: 100000,
+      ),
+      throwsA(isA<ServerFailure>()),
+    );
+    expect(await db.belumTerkirim(), isEmpty);
     container.dispose();
     await db.close();
   });

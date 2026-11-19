@@ -88,7 +88,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     child: Text(_sibuk ? 'Memeriksa...' : 'Masuk'),
                   ),
                   const SizedBox(height: 16),
-                  const Catatan('Coba 0001 atau 0002, sandi belajar.'),
+                  const Catatan(
+                    'Sandi semua akun: belajar.\n'
+                    '0001 dibayar perusahaan, 0002 mandiri, '
+                    '0003 dulu perusahaan lalu mandiri.',
+                  ),
                 ],
               ),
             ),

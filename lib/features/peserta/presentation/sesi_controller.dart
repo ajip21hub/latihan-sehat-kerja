@@ -56,6 +56,16 @@ class SesiController extends AsyncNotifier<AuthSession?> {
     }
   }
 
+  /// Menyalin snapshot terakhir repository ke sesi tanpa request baru.
+  /// Dipakai setelah aksi yang bisa mengubah data peserta (kelas, role).
+  void segarkanDariRepo() {
+    final terakhir = ref.read(sehatRepositoryProvider).terakhir;
+    if (terakhir == null || state.value == null) return;
+    state = AsyncData(
+      AuthSession(peserta: terakhir.peserta, fromCache: terakhir.fromCache),
+    );
+  }
+
   /// Coba jaringan lagi tanpa membuang sesi yang sedang tampil.
   /// `AsyncLoading` akan mengosongkan value dan router balik ke splash.
   Future<String?> cekLagi() async {

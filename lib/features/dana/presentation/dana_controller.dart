@@ -39,6 +39,7 @@ class DanaController extends Notifier<DanaState> {
       nomorPeserta: peserta.nomor,
       saldo: sekarang.saldo,
       tahunKepesertaan: peserta.tahunKepesertaan,
+      masihBekerja: peserta.masihBekerja,
       jenis: jenis,
       alasan: alasan,
       adaYangMasihBerjalan: sekarang.pengajuan.any(

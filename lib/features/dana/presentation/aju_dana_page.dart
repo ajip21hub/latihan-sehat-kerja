@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../ui/sehat_widgets.dart';
+import '../../peserta/presentation/sesi_controller.dart';
 import '../domain/pengajuan_dana.dart';
 import 'dana_controller.dart';
 
@@ -15,9 +16,16 @@ class AjuDanaPage extends ConsumerStatefulWidget {
 
 class _AjuDanaPageState extends ConsumerState<AjuDanaPage> {
   final _alasan = TextEditingController();
-  JenisAmbil _jenis = JenisAmbil.sebagian10;
+  late JenisAmbil _jenis;
   String? _error;
   bool _sibuk = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final bekerja = ref.read(sesiProvider).value?.peserta.masihBekerja ?? true;
+    _jenis = bekerja ? JenisAmbil.sebagian10 : JenisAmbil.seluruhnya;
+  }
 
   @override
   void dispose() {
@@ -33,9 +41,9 @@ class _AjuDanaPageState extends ConsumerState<AjuDanaPage> {
         children: [
           const Catatan(
             'Aturan latihan, disederhanakan dari ketentuan yang beredar di kanal publik: '
-            '10% hanya bila kepesertaan sudah 10 tahun. Pengambilan seluruh saldo di sini '
-            'cukup dengan alasan. Di layanan resmi, alasan dan dokumennya jauh lebih ketat '
-            '(usia 56, berhenti, PHK, dan seterusnya).',
+            '10% untuk peserta yang masih bekerja dengan kepesertaan minimal 10 tahun. '
+            'Seluruh saldo setelah berhenti bekerja. Di layanan resmi, alasan dan '
+            'dokumennya jauh lebih ketat (usia 56, berhenti, PHK, dan seterusnya).',
           ),
           const SizedBox(height: 16),
           SegmentedButton<JenisAmbil>(

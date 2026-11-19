@@ -23,4 +23,4 @@ Emulator Android memakai `config/android.json` (`http://10.0.2.2:8787`). Desktop
 
 Chrome memakai `web/sqlite3.wasm` dan `web/drift_worker.js` (drift 2.35.4). Tanpa keduanya database lokal tidak terbuka dan tombol masuk tetap di "Memeriksa...". Setelah mengubah kode ini, tekan `R` di terminal `flutter run`.
 
-Masuk dengan `0001` / `belajar` atau `0002` / `belajar`.
+Masuk dengan `0001`, `0002`, atau `0003`, sandi `belajar`. 0001 iurannya dibayar perusahaan, 0002 mandiri, 0003 dulu perusahaan lalu mandiri (lihat RENCANA.md, bagian Role).

@@ -16,6 +16,7 @@ void main() {
       nomorPeserta: '0002',
       saldo: saldo,
       tahunKepesertaan: 4,
+      masihBekerja: true,
       jenis: JenisAmbil.sebagian10,
       alasan: 'Persiapan masa tua',
       adaYangMasihBerjalan: false,
@@ -28,6 +29,7 @@ void main() {
       nomorPeserta: '0001',
       saldo: saldo,
       tahunKepesertaan: 11,
+      masihBekerja: true,
       jenis: JenisAmbil.sebagian10,
       alasan: 'Persiapan masa tua',
       adaYangMasihBerjalan: false,
@@ -41,9 +43,10 @@ void main() {
 
   test('seluruh saldo di atas 10 juta diperkirakan 5 hari kerja', () {
     final hasil = aksi(
-      nomorPeserta: '0001',
+      nomorPeserta: '0003',
       saldo: saldo,
-      tahunKepesertaan: 11,
+      tahunKepesertaan: 13,
+      masihBekerja: false,
       jenis: JenisAmbil.seluruhnya,
       alasan: 'Berhenti bekerja',
       adaYangMasihBerjalan: false,
@@ -54,12 +57,39 @@ void main() {
 
   test('pengajuan yang masih berjalan menolak ajuan baru', () {
     final hasil = aksi(
-      nomorPeserta: '0001',
+      nomorPeserta: '0003',
       saldo: saldo,
-      tahunKepesertaan: 11,
+      tahunKepesertaan: 13,
+      masihBekerja: false,
       jenis: JenisAmbil.seluruhnya,
       alasan: 'Berhenti bekerja',
       adaYangMasihBerjalan: true,
+    );
+    expect(hasil, isA<AjuanDitolak>());
+  });
+
+  test('masih bekerja (role A aktif) tidak boleh ambil seluruh saldo', () {
+    final hasil = aksi(
+      nomorPeserta: '0001',
+      saldo: saldo,
+      tahunKepesertaan: 11,
+      masihBekerja: true,
+      jenis: JenisAmbil.seluruhnya,
+      alasan: 'Ingin ambil semua',
+      adaYangMasihBerjalan: false,
+    );
+    expect(hasil, isA<AjuanDitolak>());
+  });
+
+  test('sudah berhenti (role A riwayat) tidak lewat jalur 10%', () {
+    final hasil = aksi(
+      nomorPeserta: '0003',
+      saldo: saldo,
+      tahunKepesertaan: 13,
+      masihBekerja: false,
+      jenis: JenisAmbil.sebagian10,
+      alasan: 'Sudah berhenti bekerja',
+      adaYangMasihBerjalan: false,
     );
     expect(hasil, isA<AjuanDitolak>());
   });

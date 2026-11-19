@@ -11,6 +11,7 @@ import '../core/sync/outbox_sync.dart';
 import '../core/sync/status_terapkan.dart';
 import '../features/artikel/domain/artikel.dart';
 import '../features/dana/domain/pengajuan_dana.dart';
+import '../features/iuran/domain/iuran.dart';
 import '../features/layanan/domain/pengajuan_layanan.dart';
 import '../features/peserta/domain/auth_session.dart';
 import 'app_snapshot.dart';
@@ -186,6 +187,27 @@ class SehatRepository {
     });
   }
 
+  /// Role B. Server menolak dengan `peran_ditolak` kalau bukan mandiri aktif.
+  Future<void> kirimBayarIuran({
+    required String clientId,
+    required String tagihanId,
+    required int nominal,
+  }) {
+    return _antre({
+      'op': 'bayarIuran',
+      'clientId': clientId,
+      'tagihanId': tagihanId,
+      'nominal': nominal,
+    });
+  }
+
+  Future<void> kirimUbahKelas({
+    required String clientId,
+    required String kelas,
+  }) {
+    return _antre({'op': 'ubahKelas', 'clientId': clientId, 'kelas': kelas});
+  }
+
   /// Status dari WebSocket. `true` kalau ada baris yang berubah.
   Future<bool> terapkanPeristiwa(PeristiwaStatus peristiwa) async {
     final dasar = _dasar;
@@ -282,6 +304,7 @@ class SehatRepository {
     if (baris.isEmpty) return dasar;
     var layanan = dasar.layanan;
     var dana = dasar.dana;
+    var tagihan = dasar.tagihan;
     for (final row in baris) {
       final Object? decoded;
       try {
@@ -304,6 +327,14 @@ class SehatRepository {
           );
           if (sudah) continue;
           dana = [_danaLokal(dasar, op), ...dana];
+        } else if (op['op'] == 'bayarIuran') {
+          final id = '${op['tagihanId']}';
+          tagihan = [
+            for (final item in tagihan)
+              item.id == id && item.bisaDibayar
+                  ? item.copyWith(status: StatusTagihan.menunggu)
+                  : item,
+          ];
         }
       } on ArgumentError {
         continue;
@@ -313,10 +344,12 @@ class SehatRepository {
         continue;
       }
     }
-    if (identical(layanan, dasar.layanan) && identical(dana, dasar.dana)) {
+    if (identical(layanan, dasar.layanan) &&
+        identical(dana, dasar.dana) &&
+        identical(tagihan, dasar.tagihan)) {
       return dasar;
     }
-    return dasar.copyWith(layanan: layanan, dana: dana);
+    return dasar.copyWith(layanan: layanan, dana: dana, tagihan: tagihan);
   }
 
   PengajuanLayanan _layananLokal(AppSnapshot dasar, Map<String, dynamic> op) {

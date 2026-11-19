@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/config/env.dart';
 import '../../../ui/sehat_widgets.dart';
+import 'menu_grid.dart';
 import 'sesi_controller.dart';
 
 class ProfilPage extends ConsumerWidget {
@@ -42,6 +43,38 @@ class ProfilPage extends ConsumerWidget {
                 ),
                 const Divider(height: 1),
                 BarisNilai('API', Env.apiBaseUrl),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text('Kepesertaan', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Lembaran(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              children: [
+                BarisNilai(
+                  'Iuran bulan ini',
+                  peserta.pembayarIuran,
+                  tebal: true,
+                ),
+                for (final k in peserta.kepesertaan) ...[
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          k.jenis.label,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 2),
+                        Catatan(ringkasSegmen(k)),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

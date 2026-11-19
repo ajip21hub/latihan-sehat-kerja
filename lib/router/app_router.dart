@@ -8,12 +8,14 @@ import '../features/artikel/presentation/artikel_baca_page.dart';
 import '../features/artikel/presentation/artikel_page.dart';
 import '../features/dana/presentation/aju_dana_page.dart';
 import '../features/dana/presentation/dana_page.dart';
+import '../features/iuran/presentation/iuran_pages.dart';
 import '../features/layanan/presentation/aju_layanan_page.dart';
 import '../features/layanan/presentation/layanan_page.dart';
 import '../features/onboarding/presentation/onboarding_controller.dart';
 import '../features/onboarding/presentation/onboarding_page.dart';
 import '../features/peserta/presentation/beranda_page.dart';
 import '../features/peserta/presentation/login_page.dart';
+import '../features/peserta/presentation/perusahaan_pages.dart';
 import '../features/peserta/presentation/profil_page.dart';
 import '../features/peserta/presentation/sesi_controller.dart';
 import '../features/peserta/presentation/splash_page.dart';
@@ -47,6 +49,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         state.uri,
         onboardingSelesai: onboarding.value ?? false,
         isInitialLoading: isInitialLoading,
+        peran: auth.value?.peserta.peran,
       );
     },
     routes: [
@@ -58,6 +61,32 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(path: Routes.login, builder: (_, _) => const LoginPage()),
+      // Menu role. Di luar shell supaya tampil penuh tanpa bottom nav.
+      // Guard di authRedirect yang memastikan role cocok.
+      GoRoute(
+        path: '/pemberi-kerja',
+        builder: (_, _) => const PemberiKerjaPage(),
+      ),
+      GoRoute(
+        path: '/iuran-perusahaan',
+        builder: (_, _) => const IuranPerusahaanPage(),
+      ),
+      GoRoute(
+        path: '/dana',
+        builder: (_, _) => const DanaPage(),
+        routes: [GoRoute(path: 'aju', builder: (_, _) => const AjuDanaPage())],
+      ),
+      GoRoute(path: '/iuran/tagihan', builder: (_, _) => const TagihanPage()),
+      GoRoute(
+        path: '/iuran/bayar',
+        builder: (_, state) =>
+            BayarIuranPage(tagihanId: state.uri.queryParameters['id']),
+      ),
+      GoRoute(
+        path: '/iuran/riwayat',
+        builder: (_, _) => const RiwayatBayarPage(),
+      ),
+      GoRoute(path: '/kelas', builder: (_, _) => const UbahKelasPage()),
       GoRoute(
         path: '/artikel',
         builder: (_, _) => const ArtikelPage(),
@@ -94,11 +123,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   label: 'Layanan',
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.savings_outlined),
-                  selectedIcon: Icon(Icons.savings),
-                  label: 'Dana',
-                ),
-                NavigationDestination(
                   icon: Icon(Icons.badge_outlined),
                   selectedIcon: Icon(Icons.badge),
                   label: 'Profil',
@@ -126,21 +150,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     path: 'baru',
                     parentNavigatorKey: _rootKey,
                     builder: (_, _) => const AjuLayananPage(),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/dana',
-                builder: (_, _) => const DanaPage(),
-                routes: [
-                  GoRoute(
-                    path: 'aju',
-                    parentNavigatorKey: _rootKey,
-                    builder: (_, _) => const AjuDanaPage(),
                   ),
                 ],
               ),

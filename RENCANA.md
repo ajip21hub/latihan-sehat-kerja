@@ -35,34 +35,55 @@ Dari kanal publik (bukan salinan peraturan): pengambilan sebagian 10% untuk pese
 | Outbox (Hari 3) | `outbox_rows`. Kirim offline langsung tersimpan, `synced = false` |
 | Sidik / race (Hari 3) | `tandaiSynced` hanya jika payload yang dikirim masih sama |
 | Konflik saldo (Hari 3) | `saldo_berubah` dan `nominal_berubah` tidak di-synced. `expectedSaldoTotal` (dan nominal) ditulis ulang |
-| Penolakan (Hari 3) | `ditolak` dan `jenis` ditandai `batal`, tidak diulang |
+| Penolakan (Hari 3) | `ditolak`, `jenis`, dan `peran_ditolak` ditandai `batal`, tidak diulang |
 | Antrean saat aplikasi terbuka | Banner “Kirim sekarang”, plus kirim lagi setelah sesi pulih |
 | Background sync (Hari 3) | workmanager Android, kira-kira tiap 15 menit, hanya kalau ada jaringan |
 | WebSocket (Hari 3) | `ws://<host>:8787/v1/stream?token=`, jeda sambung 1–15 detik |
 
 ## Akun latihan
 
-| Nomor | Sandi | Kelas | Kepesertaan | Saldo JHT |
-|---|---|---|---|---|
-| 0001 | belajar | Kelas 2, Klinik Melati | 11 tahun | Rp12.500.000 |
-| 0002 | belajar | Kelas 3, Puskesmas Dahlia | 4 tahun | Rp3.200.000 |
+| Nomor | Sandi | Role | Kelas | Kepesertaan | Saldo JHT |
+|---|---|---|---|---|---|
+| 0001 | belajar | A: perusahaan, aktif (PT Maju Jaya) | Kelas 2, Klinik Melati | 11 tahun | Rp12.500.000 |
+| 0002 | belajar | B: mandiri, aktif | Kelas 3, Puskesmas Dahlia | 4 tahun | tidak ada |
+| 0003 | belajar | A: perusahaan, berhenti (PT Sinar Abadi) + B: mandiri, aktif | Kelas 2, Klinik Kenanga | 13 tahun | Rp18.000.000 |
 
-`0001` boleh ajukan 10%. `0002` ditolak karena belum 10 tahun.
+`0001` masih bekerja: boleh 10%, seluruh saldo ditolak. `0003` sudah berhenti: 10% ditolak, seluruh saldo boleh. `0002` tidak punya menu dana. Server menolak dengan `peran_ditolak`.
+
+## Role: siapa yang membayar iuran
+
+Role dikirim backend di `peserta.kepesertaan`, berupa daftar segmen `{jenis, status, mulai, selesai?, pemberiKerja?}`.
+
+| Role | `jenis` | Arti |
+|---|---|---|
+| A | `perusahaan` | Iuran dipotong gaji ditambah porsi pemberi kerja |
+| B | `mandiri` | Iuran dibayar sendiri tiap bulan |
+
+Role bertambah, tidak saling mengganti. Peserta yang berhenti kerja lalu daftar mandiri memegang A (status `berhenti`) dan B (status `aktif`). Menu A tetap tampil.
+
+- Menu ditentukan oleh `jenis` yang dimiliki (`menuUntuk` di `features/peserta/domain/menu_utama.dart`). Aturan di dalam menu memakai `status`, misalnya `AjukanPencairan` menerima `masihBekerja`.
+- Menu A: Info pemberi kerja, Iuran perusahaan, Saldo JHT, Klaim JHT. Menu B: Tagihan iuran, Bayar iuran, Riwayat bayar, Ubah kelas rawat. Menu bersama: Layanan faskes, Bacaan, Profil.
+- Bottom nav tetap Beranda / Layanan / Profil. Menu role ada di grid Beranda, dikelompokkan per role.
+- Guard router (`authRedirect`, parameter `peran`) mengembalikan deep link yang bukan haknya ke Beranda, termasuk `?from=` setelah login.
+- Snapshot hanya berisi bagian sesuai role: `saldo`, `dana`, dan `iuranPerusahaan` untuk A, `tagihan` untuk B. Field yang tidak dikirim dibaca kosong.
+- Outbox menolak aksi di luar role dengan `peran_ditolak`. Klien menandai baris itu batal, sama seperti `ditolak`. Menyembunyikan menu hanya tampilan, keamanannya ada di server.
+- Role yang belum dikenal aplikasi diabaikan. Cache lama tanpa `kepesertaan` dibaca tanpa role sampai snapshot berikutnya berhasil diunduh.
 
 ## Alur
 
 1. Masuk.
-2. Beranda menampilkan kelas rawat dan saldo.
+2. Beranda menampilkan kartu peserta, siapa yang membayar iuran, saldo (role A), tagihan (role B), dan grid menu sesuai role.
 3. Layanan: lihat riwayat, ajukan rawat jalan atau rawat inap. Status awal `Diajukan`.
-4. Dana: lihat pecahan saldo, ajukan 10% atau seluruhnya. Use case yang memutuskan, bukan halaman.
-5. Profil: NIK disamarkan. Keluar.
-6. Bacaan: artikel dari server, tersimpan di perangkat, tetap bisa dibaca saat server mati.
+4. Dana (role A): lihat pecahan saldo, ajukan 10% atau seluruhnya. Use case yang memutuskan, bukan halaman.
+5. Iuran mandiri (role B): bayar tagihan (simulasi, lewat outbox), lihat riwayat, ubah kelas setelah semua tagihan lunas.
+6. Profil: NIK disamarkan, daftar segmen kepesertaan. Keluar.
+7. Bacaan: artikel dari server, tersimpan di perangkat, tetap bisa dibaca saat server mati.
 
 ## Offline-first dan background sync
 
-Pengajuan tidak menunggu jawaban server sebelum muncul di layar. Barisnya masuk `outbox_rows` dulu. Kalau `POST /v1/outbox` putus, baris tetap `synced = false` dan pita “Kirim sekarang” muncul di Beranda, Layanan, dan Dana.
+Pengajuan tidak menunggu jawaban server sebelum muncul di layar. Barisnya masuk `outbox_rows` dulu. Kalau `POST /v1/outbox` putus, baris tetap `synced = false` dan pita “Kirim sekarang” muncul di Beranda, Layanan, Dana, Tagihan, dan Ubah kelas.
 
-Saat jaringan ada, semua baris yang belum selesai dikirim sekaligus. Sukses atau `alreadyApplied` menandai synced hanya kalau sidik payload belum berubah. `saldo_berubah` dan `nominal_berubah` tetap antre, saldo di layar dimuat ulang, lalu angka di payload disesuaikan. `ditolak` dan `jenis` selesai.
+Saat jaringan ada, semua baris yang belum selesai dikirim sekaligus. Sukses atau `alreadyApplied` menandai synced hanya kalau sidik payload belum berubah. `saldo_berubah` dan `nominal_berubah` tetap antre, saldo di layar dimuat ulang, lalu angka di payload disesuaikan. `ditolak`, `jenis`, dan `peran_ditolak` selesai.
 
 Snapshot tetap bentuk `AppSnapshot`. Sumbernya tabel `snapshot_cache` (skema versi 3; migrasi dari versi 1 menambah kolom `batal`, dari versi 2 menambah `artikel_cache`). JSON `cached_snapshot` hanya dibaca kalau tabel masih kosong, supaya sesi lama tidak hilang.
 
