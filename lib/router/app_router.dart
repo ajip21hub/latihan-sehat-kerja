@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/analytics/analytics_service.dart';
+
 import '../features/artikel/presentation/artikel_baca_page.dart';
 import '../features/artikel/presentation/artikel_page.dart';
 import '../features/dana/presentation/aju_dana_page.dart';
@@ -25,9 +27,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   ref.listen(sesiProvider, (_, _) => tick.value++);
   ref.listen(onboardingProvider, (_, _) => tick.value++);
 
+  final observer = ref.watch(analyticsObserverProvider);
+
   final router = GoRouter(
     navigatorKey: _rootKey,
     initialLocation: Routes.beranda,
+    observers: [
+      if (observer != null) observer,
+    ],
     refreshListenable: tick,
     redirect: (_, state) {
       final auth = ref.read(sesiProvider);

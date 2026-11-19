@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/analytics/analytics_service.dart';
 import '../../../core/format.dart';
 import '../../../ui/sehat_theme.dart';
 import '../../../ui/sehat_widgets.dart';
@@ -64,7 +65,10 @@ class BerandaPage extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           FilledButton(
-            onPressed: () => context.push('/layanan/baru'),
+            onPressed: () {
+              ref.read(analyticsServiceProvider).logKlikAjukanLayanan();
+              context.push('/layanan/baru');
+            },
             child: const Text('Ajukan layanan kesehatan'),
           ),
           const SizedBox(height: 10),

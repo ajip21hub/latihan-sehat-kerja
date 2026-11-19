@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/analytics/analytics_service.dart';
 import '../../../ui/sehat_widgets.dart';
 import '../domain/pengajuan_layanan.dart';
 import 'layanan_controller.dart';
@@ -19,9 +20,33 @@ class _AjuLayananPageState extends ConsumerState<AjuLayananPage> {
   JenisLayanan _jenis = JenisLayanan.rawatJalan;
   String? _error;
   bool _sibuk = false;
+  bool _formFilledTracked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _faskes.addListener(_cekFormTerisi);
+    _keluhan.addListener(_cekFormTerisi);
+  }
+
+  void _cekFormTerisi() {
+    if (_formFilledTracked) return;
+    final faskes = _faskes.text.trim();
+    final keluhan = _keluhan.text.trim();
+    if (faskes.isNotEmpty && keluhan.length >= 5) {
+      _formFilledTracked = true;
+      ref.read(analyticsServiceProvider).logFormLayananTerisi(
+            jenisLayanan: _jenis.name,
+            faskesLength: faskes.length,
+            keluhanLength: keluhan.length,
+          );
+    }
+  }
 
   @override
   void dispose() {
+    _faskes.removeListener(_cekFormTerisi);
+    _keluhan.removeListener(_cekFormTerisi);
     _faskes.dispose();
     _keluhan.dispose();
     super.dispose();
@@ -76,7 +101,16 @@ class _AjuLayananPageState extends ConsumerState<AjuLayananPage> {
   }
 
   Future<void> _kirim() async {
-    if (_faskes.text.trim().isEmpty || _keluhan.text.trim().length < 5) {
+    final isValid =
+        _faskes.text.trim().isNotEmpty && _keluhan.text.trim().length >= 5;
+
+    // 3. Tracking klik tombol kirim pengajuan
+    ref.read(analyticsServiceProvider).logKlikKirimPengajuan(
+          jenisLayanan: _jenis.name,
+          isValid: isValid,
+        );
+
+    if (!isValid) {
       setState(() => _error = 'Isi faskes dan keluhan, minimal 5 huruf.');
       return;
     }
@@ -89,6 +123,9 @@ class _AjuLayananPageState extends ConsumerState<AjuLayananPage> {
         .ajukan(jenis: _jenis, faskes: _faskes.text, keluhan: _keluhan.text);
     if (!mounted) return;
     if (error == null) {
+      ref.read(analyticsServiceProvider).logKirimPengajuanSukses(
+            jenisLayanan: _jenis.name,
+          );
       context.pop();
       return;
     }
