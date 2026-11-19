@@ -26,9 +26,7 @@ void main() {
     test('memperbarui state saat selesaikan dan reset', () async {
       final memory = MemoryKeyValueStore();
       final container = ProviderContainer(
-        overrides: [
-          keyValueStoreProvider.overrideWithValue(memory),
-        ],
+        overrides: [keyValueStoreProvider.overrideWithValue(memory)],
       );
       addTearDown(container.dispose);
 
@@ -49,18 +47,14 @@ void main() {
     ) async {
       final memory = MemoryKeyValueStore();
       final container = ProviderContainer(
-        overrides: [
-          keyValueStoreProvider.overrideWithValue(memory),
-        ],
+        overrides: [keyValueStoreProvider.overrideWithValue(memory)],
       );
       addTearDown(container.dispose);
 
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const MaterialApp(
-            home: OnboardingPage(),
-          ),
+          child: const MaterialApp(home: OnboardingPage()),
         ),
       );
       await tester.pumpAndSettle();
@@ -100,18 +94,14 @@ void main() {
     ) async {
       final memory = MemoryKeyValueStore();
       final container = ProviderContainer(
-        overrides: [
-          keyValueStoreProvider.overrideWithValue(memory),
-        ],
+        overrides: [keyValueStoreProvider.overrideWithValue(memory)],
       );
       addTearDown(container.dispose);
 
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const MaterialApp(
-            home: OnboardingPage(),
-          ),
+          child: const MaterialApp(home: OnboardingPage()),
         ),
       );
       await tester.pumpAndSettle();
@@ -126,9 +116,7 @@ void main() {
     testWidgets('mode viewOnly menampilkan tombol tutup', (tester) async {
       await tester.pumpWidget(
         const ProviderScope(
-          child: MaterialApp(
-            home: OnboardingPage(isViewOnly: true),
-          ),
+          child: MaterialApp(home: OnboardingPage(isViewOnly: true)),
         ),
       );
       await tester.pumpAndSettle();

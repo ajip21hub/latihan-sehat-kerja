@@ -28,7 +28,8 @@ String? authRedirect(
   final isViewMode = uri.queryParameters['view'] == 'true';
   final from = uri.queryParameters['from'];
 
-  if (isInitialLoading || (auth.isLoading && !auth.hasValue && !auth.hasError)) {
+  if (isInitialLoading ||
+      (auth.isLoading && !auth.hasValue && !auth.hasError)) {
     if (atLogin || atSplash || atOnboarding) return null;
     return _withFrom(Routes.splash, uri.toString());
   }

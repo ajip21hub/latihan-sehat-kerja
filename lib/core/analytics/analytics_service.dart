@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Service untuk melacak event dan funnel analisis aplikasi ke Firebase Analytics.
 class AnalyticsService {
-  AnalyticsService({FirebaseAnalytics? analytics}) : _analytics = analytics;
+  AnalyticsService({this._analytics});
 
   final FirebaseAnalytics? _analytics;
 
@@ -18,7 +18,9 @@ class AnalyticsService {
     try {
       await _analytics?.logEvent(name: name, parameters: eventParams);
     } catch (e) {
-      debugPrint('[Analytics] Warning: Gagal kirim event $name ke Firebase: $e');
+      debugPrint(
+        '[Analytics] Warning: Gagal kirim event $name ke Firebase: $e',
+      );
     }
   }
 
