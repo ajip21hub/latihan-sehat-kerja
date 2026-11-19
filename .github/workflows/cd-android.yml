@@ -16,10 +16,20 @@ on:
           - 'appbundle'
           - 'both'
 
+permissions:
+  contents: read
+
 jobs:
+  ci:
+    name: CI Gate (lint, test, security)
+    uses: ./.github/workflows/ci.yml
+
   build-android:
     name: Build Android Release
+    needs: ci
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # hanya untuk membuat GitHub Release
 
     steps:
       - name: Checkout Code
@@ -35,17 +45,31 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          flutter-version: '3.47.9'  # samakan dengan versi lokal; naikkan sengaja, bukan otomatis
           cache: true
 
-      - name: Setup Google Services Config
+      - name: Setup Firebase Config
         env:
           GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+          FIREBASE_OPTIONS_DART_BASE64: ${{ secrets.FIREBASE_OPTIONS_DART_BASE64 }}
         run: |
-          if [ -n "$GOOGLE_SERVICES_JSON_BASE64" ]; then
-            echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > android/app/google-services.json
-          elif [ ! -f "android/app/google-services.json" ] && [ -f "android/app/google-services.json.example" ]; then
-            cp android/app/google-services.json.example android/app/google-services.json
+          if [ -z "$GOOGLE_SERVICES_JSON_BASE64" ] || [ -z "$FIREBASE_OPTIONS_DART_BASE64" ]; then
+            echo "::error::Secret GOOGLE_SERVICES_JSON_BASE64 / FIREBASE_OPTIONS_DART_BASE64 belum diisi"; exit 1
           fi
+          echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > android/app/google-services.json
+          echo "$FIREBASE_OPTIONS_DART_BASE64" | base64 --decode > lib/firebase_options.dart
+
+      - name: Generate Release Config (HTTPS only)
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          CERT_SHA256_PINS: ${{ vars.CERT_SHA256_PINS }}
+        run: |
+          case "$API_BASE_URL" in
+            https://*) ;;
+            *) echo "::error::vars.API_BASE_URL wajib https:// (sekarang: '$API_BASE_URL')"; exit 1 ;;
+          esac
+          jq -n --arg url "$API_BASE_URL" --arg pins "$CERT_SHA256_PINS" \
+            '{FLAVOR: "prod", API_BASE_URL: $url, CERT_SHA256_PINS: $pins}' > config/prod.json
 
       - name: Setup Android Keystore & Signing Config
         env:
@@ -54,18 +78,16 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
-            echo "Configuring release keystore..."
-            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
-            cat <<EOF > android/key.properties
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "::error::Keystore release belum diisi. Release tidak boleh ditandatangani debug key."; exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          cat <<EOF > android/key.properties
           storePassword=$KEYSTORE_PASSWORD
           keyPassword=$KEY_PASSWORD
           keyAlias=$KEY_ALIAS
           storeFile=upload-keystore.jks
           EOF
-          else
-            echo "No custom keystore provided. Falling back to debug signing config."
-          fi
 
       - name: Install Dependencies
         run: flutter pub get
@@ -75,11 +97,32 @@ jobs:
 
       - name: Build Android APK
         if: ${{ github.event_name == 'push' || inputs.build_type == 'apk' || inputs.build_type == 'both' }}
-        run: flutter build apk --release --split-per-abi
+        run: flutter build apk --release --split-per-abi --obfuscate --split-debug-info=build/symbols --dart-define-from-file=config/prod.json
 
       - name: Build Android App Bundle (AAB)
         if: ${{ github.event_name == 'push' || inputs.build_type == 'appbundle' || inputs.build_type == 'both' }}
-        run: flutter build appbundle --release
+        run: flutter build appbundle --release --obfuscate --split-debug-info=build/symbols --dart-define-from-file=config/prod.json
+
+      - name: Verify Release Signature (bukan debug key)
+        run: |
+          apksigner=$(ls $ANDROID_HOME/build-tools/*/apksigner | sort -V | tail -1)
+          for apk in build/app/outputs/flutter-apk/*-release.apk; do
+            [ -f "$apk" ] || continue
+            out=$("$apksigner" verify --print-certs "$apk")
+            echo "$out" | grep -q "CN=Android Debug" && { echo "::error::$apk ditandatangani debug key"; exit 1; }
+            echo "$apk OK"
+          done
+
+      - name: Remove Signing Material
+        if: always()
+        run: rm -f android/app/upload-keystore.jks android/key.properties android/app/google-services.json lib/firebase_options.dart
+
+      - name: Upload Debug Symbols (private artifact, untuk deobfuscate crash)
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-symbols
+          path: build/symbols
+          retention-days: 90
 
       - name: Upload APKs to Artifacts
         uses: actions/upload-artifact@v4

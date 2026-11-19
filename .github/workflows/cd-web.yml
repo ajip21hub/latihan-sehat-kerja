@@ -12,8 +12,13 @@ permissions:
   id-token: write
 
 jobs:
+  ci:
+    name: CI Gate (lint, test, security)
+    uses: ./.github/workflows/ci.yml
+
   build-web:
     name: Build Flutter Web
+    needs: ci
     runs-on: ubuntu-latest
 
     steps:
@@ -24,7 +29,29 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          flutter-version: '3.47.9'  # samakan dengan versi lokal; naikkan sengaja, bukan otomatis
           cache: true
+
+      - name: Setup Firebase Config
+        env:
+          FIREBASE_OPTIONS_DART_BASE64: ${{ secrets.FIREBASE_OPTIONS_DART_BASE64 }}
+        run: |
+          if [ -z "$FIREBASE_OPTIONS_DART_BASE64" ]; then
+            echo "::error::Secret FIREBASE_OPTIONS_DART_BASE64 belum diisi"; exit 1
+          fi
+          echo "$FIREBASE_OPTIONS_DART_BASE64" | base64 --decode > lib/firebase_options.dart
+
+      - name: Generate Release Config (HTTPS only)
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          CERT_SHA256_PINS: ${{ vars.CERT_SHA256_PINS }}
+        run: |
+          case "$API_BASE_URL" in
+            https://*) ;;
+            *) echo "::error::vars.API_BASE_URL wajib https://"; exit 1 ;;
+          esac
+          jq -n --arg url "$API_BASE_URL" --arg pins "$CERT_SHA256_PINS" \
+            '{FLAVOR: "prod", API_BASE_URL: $url, CERT_SHA256_PINS: $pins}' > config/prod.json
 
       - name: Install Dependencies
         run: flutter pub get
@@ -33,7 +60,7 @@ jobs:
         run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Build Web
-        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+        run: flutter build web --release --dart-define-from-file=config/prod.json --base-href "/${{ github.event.repository.name }}/"
 
       - name: Upload Web Build Artifact
         uses: actions/upload-artifact@v4
@@ -44,7 +71,7 @@ jobs:
   deploy-pages:
     name: Deploy to GitHub Pages
     needs: build-web
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     environment:
       name: github-pages

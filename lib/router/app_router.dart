@@ -32,16 +32,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
     navigatorKey: _rootKey,
     initialLocation: Routes.beranda,
-    observers: [
-      if (observer != null) observer,
-    ],
+    observers: [?observer],
     refreshListenable: tick,
     redirect: (_, state) {
       final auth = ref.read(sesiProvider);
       final onboarding = ref.read(onboardingProvider);
       final isInitialLoading =
           (auth.isLoading && !auth.hasValue && !auth.hasError) ||
-          (onboarding.isLoading && !onboarding.hasValue && !onboarding.hasError);
+          (onboarding.isLoading &&
+              !onboarding.hasValue &&
+              !onboarding.hasError);
       return authRedirect(
         auth,
         state.uri,

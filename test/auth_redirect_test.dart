@@ -35,14 +35,17 @@ void main() {
     expect(ke, '/onboarding');
   });
 
-  test('sedang di /onboarding saat belum selesai onboarding tetap di tempat', () {
-    final ke = authRedirect(
-      const AsyncData(null),
-      Uri.parse('/onboarding'),
-      onboardingSelesai: false,
-    );
-    expect(ke, isNull);
-  });
+  test(
+    'sedang di /onboarding saat belum selesai onboarding tetap di tempat',
+    () {
+      final ke = authRedirect(
+        const AsyncData(null),
+        Uri.parse('/onboarding'),
+        onboardingSelesai: false,
+      );
+      expect(ke, isNull);
+    },
+  );
 
   test('sudah selesai onboarding saat di /onboarding dialihkan ke login', () {
     final ke = authRedirect(
