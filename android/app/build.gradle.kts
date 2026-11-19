@@ -55,6 +55,17 @@ android {
             if (releaseSigning?.storeFile?.exists() == true) {
                 signingConfig = releaseSigning
             } else {
+                // Fallback ini hanya untuk latihan lokal. CI menolak artefak
+                // ber-debug-key, dan Play Store juga akan menolaknya.
+                val buildingRelease = gradle.startParameter.taskNames.any {
+                    it.contains("Release", ignoreCase = true)
+                }
+                if (buildingRelease) {
+                    logger.warn(
+                        "PERINGATAN: android/key.properties atau keystore tidak ditemukan. " +
+                            "Build release ditandatangani DEBUG KEY dan tidak boleh dirilis."
+                    )
+                }
                 signingConfig = signingConfigs.getByName("debug")
             }
         }

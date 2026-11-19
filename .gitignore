@@ -61,3 +61,13 @@ firebase_options.dart
 key.properties
 **/android/key.properties
 
+
+# Hasil ekstrak APK, jangan di-commit
+/META-INF/
+/classes*.dex
+/resources.arsc
+/androidmanifest.xml
+/debugprobeskt.bin
+/kotlin/
+/kotlin-tooling-metadata.json
+/res/

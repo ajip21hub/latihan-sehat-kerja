@@ -1,57 +1,63 @@
-# Panduan Implementasi CI/CD - SehatKerja
+# Panduan Implementasi CI/CD - SehatKerja (Android)
 
-Dokumen ini menjelaskan alur kerja (*pipeline*) Continuous Integration (CI) dan Continuous Deployment (CD) yang telah diimplementasikan menggunakan **GitHub Actions**.
+Dokumen ini menjelaskan alur kerja (*pipeline*) Continuous Integration (CI) dan Continuous Deployment (CD) Android yang diimplementasikan dengan **GitHub Actions**.
+
+> **Catatan repositori:** folder ini adalah subtree dari repo pelatihan. GitHub hanya membaca `.github/workflows/` di root repositori, sehingga workflow ini berjalan di repo `latihan-sehat-kerja`, bukan di repo induk. Kirim perubahan dengan:
+>
+> ```bash
+> git subtree push --prefix latihan-sehat-kerja repo-latihan-sehat-kerja master
+> ```
 
 ---
 
 ## 1. Arsitektur Workflow
 
-Terdapat 3 workflow yang telah dikonfigurasi di dalam direktori `.github/workflows/`:
-
 | Workflow File | Trigger | Tugas Utama |
 | :--- | :--- | :--- |
-| **`ci.yml`** | Push & PR ke branch `main`, `master`, `develop` | • Format check (`dart format`)<br>• Linter (`flutter analyze`)<br>• Backend self-check (`dart run backend/server.dart --self-check`)<br>• Validasi drift codegen (`build_runner`)<br>• Unit & Widget Tests (`flutter test --coverage`) |
-| **`cd-android.yml`** | Tag `v*` (contoh: `v1.0.0`) atau Manual (*workflow_dispatch*) | • Injeksi keystore & `key.properties`<br>• Generate Drift code<br>• Build APK Release (`--split-per-abi`) & App Bundle (AAB)<br>• Publikasi ke GitHub Release & Upload Artifacts |
-| **`cd-web.yml`** | Tag `v*` atau Manual (*workflow_dispatch*) | • Build Flutter Web release (termasuk `sqlite3.wasm` & `drift_worker.js`)<br>• Deploy otomatis ke GitHub Pages |
+| **`ci.yml`** | Push dan PR ke `main`, `master`, `develop`; juga dipanggil oleh `cd-android.yml` | **Job test:** format (`dart format`), analisis (`flutter analyze`), backend self-check, validasi codegen drift (`build_runner` + `git diff`), test (`flutter test --coverage`).<br>**Job security:** secret scan (gitleaks), audit dependensi (OSV, `pubspec.lock`), larangan file rahasia ter-commit, cek manifest release HTTPS-only dan tidak `debuggable`. |
+| **`cd-android.yml`** | Tag `v*` (contoh: `v1.0.0`) atau manual (*workflow_dispatch*) | Menjalankan `ci.yml` sebagai gerbang, lalu: injeksi Firebase config dan keystore, generate `config/prod.json` (wajib HTTPS), build APK (`--split-per-abi`) dan AAB dengan `--obfuscate`, verifikasi tanda tangan (APK dan AAB tidak boleh debug key), upload artifact dan debug symbols, publikasi ke GitHub Release (khusus tag). |
 
 ---
 
-## 2. Persiapan GitHub Secrets (Android Release Signing)
+## 2. Secrets dan Variables
 
-Agar rilis Android ditandatangani (*signed*) menggunakan kunci rilis resmi Anda, tambahkan rahasia berikut di repositori GitHub Anda:
+Masuk ke **Settings** repositori > **Secrets and variables** > **Actions**.
 
-> Masuk ke: **Settings** repositori GitHub > **Secrets and variables** > **Actions** > **New repository secret**.
+### Secrets (tab *Secrets*), semuanya wajib
 
-### Daftar Secrets:
+Jika salah satu kosong, `cd-android.yml` langsung gagal. Tidak ada fallback ke debug keystore di CI.
 
-1. **`ANDROID_KEYSTORE_BASE64`**
-   - String Base64 dari file keystore (`.jks` / `.keystore`).
-2. **`KEYSTORE_PASSWORD`**
-   - Password untuk file keystore.
-3. **`KEY_ALIAS`**
-   - Nama alias kunci di dalam keystore.
-4. **`KEY_PASSWORD`**
-   - Password untuk alias kunci.
-5. **`GOOGLE_SERVICES_JSON_BASE64`** *(Opsional)*
-   - Isi file `android/app/google-services.json` yang di-encode ke Base64 (jika Firebase produksi digunakan).
+| Nama | Isi |
+| :--- | :--- |
+| `ANDROID_KEYSTORE_BASE64` | Base64 dari file keystore release (`.jks`). |
+| `KEYSTORE_PASSWORD` | Password keystore. |
+| `KEY_ALIAS` | Alias kunci di dalam keystore. |
+| `KEY_PASSWORD` | Password alias kunci. |
+| `GOOGLE_SERVICES_JSON_BASE64` | Base64 dari `android/app/google-services.json` produksi. |
+| `FIREBASE_OPTIONS_DART_BASE64` | Base64 dari `lib/firebase_options.dart` produksi (hasil `flutterfire configure`). |
 
-> **Catatan:** Jika secret di atas belum diatur, pipeline `cd-android.yml` secara otomatis tetap berjalan menggunakan *debug keystore* sebagai fallback yang aman sehingga build tidak gagal.
+### Variables (tab *Variables*)
+
+| Nama | Wajib | Isi |
+| :--- | :--- | :--- |
+| `API_BASE_URL` | Ya | Alamat API produksi. Harus diawali `https://`; selain itu build gagal. |
+| `CERT_SHA256_PINS` | Tidak | Pin SHA-256 sertifikat server untuk certificate pinning. Kosongkan jika belum dipakai. |
 
 ---
 
-## 3. Cara Membuat Keystore & Menyiapkan Secret
+## 3. Membuat Keystore dan Mengisi Secret
 
-Jika Anda belum memiliki keystore rilis, jalankan langkah berikut di terminal lokal Anda:
-
-### Langkah 1: Buat Keystore Baru
+### Langkah 1: Buat keystore baru
 ```bash
 keytool -genkey -v -keystore upload-keystore.jks \
   -keyalg RSA -keysize 2048 -validity 10000 \
   -alias sehat-kerja-key
 ```
-*(Ingat password dan alias yang Anda masukkan).*
+Catat password dan alias yang dimasukkan. Simpan keystore di luar repositori; kehilangan keystore berarti tidak bisa memperbarui aplikasi di Play Store.
 
-### Langkah 2: Encode Keystore ke Base64
+### Langkah 2: Encode file ke Base64
+Lakukan untuk `upload-keystore.jks`, `google-services.json`, dan `firebase_options.dart`.
+
 - **macOS:**
   ```bash
   base64 -i upload-keystore.jks | pbcopy
@@ -65,50 +71,62 @@ keytool -genkey -v -keystore upload-keystore.jks \
   [Convert]::ToBase64String([IO.File]::ReadAllBytes("upload-keystore.jks")) | Set-Clipboard
   ```
 
-Paste hasil tersebut ke dalam secret **`ANDROID_KEYSTORE_BASE64`**.
+Tempel hasilnya ke secret yang sesuai.
 
 ---
 
-## 4. Cara Menjalankan Pipeline
+## 4. Menjalankan Pipeline
 
-### A. Menjalankan CI (Otomatis)
-Cukup buat branch baru, lakukan commit, dan buka **Pull Request (PR)** ke branch `main`. GitHub Actions akan otomatis menjalankan pengujian.
+### A. CI (otomatis)
+Buat branch baru, commit, lalu buka **Pull Request** ke `master`. CI berjalan otomatis.
 
-Untuk memastikan CI lolos sebelum push, jalankan verifikasi lokal:
+Verifikasi lokal sebelum push (urutan sama dengan CI):
 ```bash
-# 1. Format kode
-dart format --set-exit-if-changed .
-
-# 2. Analisis linting
+dart format --output=none --set-exit-if-changed lib test backend
 flutter analyze
-
-# 3. Generate drift & database
+dart run backend/server.dart --self-check
 dart run build_runner build --delete-conflicting-outputs
-
-# 4. Jalankan test
+git diff --exit-code lib/   # hasil codegen harus sudah ter-commit
 flutter test
 ```
 
-### B. Menjalankan CD (Rilis Versi Baru)
-Terdapat dua cara untuk memicu build release:
+### B. CD (rilis versi baru)
 
-#### Cara 1: Menggunakan Git Tag (Direkomendasikan)
+#### Cara 1: Git tag (direkomendasikan)
 ```bash
 git tag v1.0.0
-git push origin v1.0.0
+git push repo-latihan-sehat-kerja v1.0.0
 ```
-Actions akan memicu `cd-android.yml` dan `cd-web.yml`, melakukan build, dan membuat rilis baru di tab **Releases** GitHub lengkap dengan file APK dan AAB siap download.
+`cd-android.yml` menjalankan CI, membuild APK dan AAB, lalu membuat rilis di tab **Releases** lengkap dengan file APK dan AAB.
 
-#### Cara 2: Manual Trigger (Workflow Dispatch)
-1. Buka tab **Actions** di repositori GitHub.
-2. Pilih workflow **CD Android (Release Build)** atau **CD Web (Build & Deploy)** di menu sebelah kiri.
-3. Klik tombol **Run workflow**, pilih target build (`apk`, `appbundle`, atau `both`), lalu klik **Run workflow**.
+#### Cara 2: Manual (*workflow_dispatch*)
+1. Buka tab **Actions**.
+2. Pilih **CD Android (Release Build)**.
+3. Klik **Run workflow**, pilih target (`apk`, `appbundle`, atau `both`), lalu **Run workflow**.
+
+Hasil manual hanya tersedia sebagai artifact; GitHub Release hanya dibuat dari tag.
+
+### C. Debug symbols
+Build memakai `--obfuscate`, sehingga stack trace crash tidak terbaca tanpa symbols. Unduh artifact `debug-symbols` (disimpan 90 hari) dan jalankan:
+```bash
+flutter symbolize -i stack_trace.txt -d debug-symbols/app.android-arm64.symbols
+```
 
 ---
 
 ## 5. Konfigurasi Signing di Proyek Lokal
 
-File [build.gradle.kts](file:///Users/yuma/orca/projects/flutter-pelatihan-lanjutan/latihan-sehat-kerja/android/app/build.gradle.kts) sudah disesuaikan agar:
-1. Membaca file `android/key.properties` jika tersedia.
-2. Jika file tersebut tidak ditemukan atau file `.jks` belum ada, proses build otomatis beralih ke kunci *debug* (`signingConfigs.debug`).
-3. File `key.properties` dan `*.jks` sudah dimasukkan ke [.gitignore](file:///Users/yuma/orca/projects/flutter-pelatihan-lanjutan/latihan-sehat-kerja/.gitignore) sehingga aman dan tidak akan ter-commit secara tidak sengaja ke git publik.
+`android/app/build.gradle.kts`:
+1. Membaca `android/key.properties` jika tersedia.
+2. Jika file tersebut atau keystore tidak ada, build release lokal tetap jalan dengan kunci *debug* dan Gradle mencetak **PERINGATAN**. Hasil build seperti ini hanya untuk latihan, tidak boleh dirilis.
+3. Di CI, fallback ini tidak pernah terpakai: workflow gagal jika secret keystore kosong, dan langkah verifikasi menolak APK/AAB bertanda tangan debug.
+4. `key.properties`, `*.jks`, `google-services.json`, dan `firebase_options.dart` ada di `.gitignore`. Job security di CI juga gagal jika file tersebut ter-commit.
+
+Contoh `android/key.properties`:
+```properties
+storePassword=...
+keyPassword=...
+keyAlias=sehat-kerja-key
+storeFile=upload-keystore.jks
+```
+`storeFile` relatif terhadap folder `android/app/`.
